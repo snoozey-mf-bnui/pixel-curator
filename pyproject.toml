@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixel-curator"
+version = "1.0.0"
+description = "Local-first CLI for extracting, scoring, curating and exporting image datasets - from raw video/photo archives to training-ready packages"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "snoozey-mf-bnui"}]
+keywords = ["image-curation", "dataset", "lora", "clip", "dedup", "culling"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "Pillow>=10.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+caption = ["onnxruntime>=1.16", "huggingface-hub>=0.20"]
+cluster = ["torch>=2.0", "open-clip-torch>=2.24"]
+vlm = ["torch>=2.0", "transformers>=4.40"]
+parquet = ["pandas>=2.0", "pyarrow>=14.0"]
+all = [
+    "onnxruntime>=1.16", "huggingface-hub>=0.20",
+    "torch>=2.0", "open-clip-torch>=2.24", "transformers>=4.40",
+    "pandas>=2.0", "pyarrow>=14.0",
+]
+
+[project.scripts]
+pixel-curator = "pixel_curator.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/snoozey-mf-bnui/pixel-curator"
+Issues = "https://github.com/snoozey-mf-bnui/pixel-curator/issues"
+
+[tool.setuptools.packages.find]
+include = ["pixel_curator*"]
