@@ -1,30 +1,83 @@
 # pixel-curator
 
-**Local-first CLI for turning raw photo/video archives into curated, scored, exportable datasets.** Strictly terminal-based: no GUI, no accounts, no cloud — every byte stays on your machine.
+**Local-first dataset curation for DreamBooth likeness training and LoRA training.**
 
-It was built to prepare LoRA training datasets, but the curation core is content-agnostic: extract frames, score quality, dedupe, caption, cluster by visual similarity, filter with natural language, review in a browser, and export the result in whatever shape you need — a flat manifest for a spreadsheet, a symlinked "best 10%" folder, or a training-ready Kohya/DreamBooth package.
+You have hundreds or thousands of images of a face, a character, a product, or a style. You want to train a model that reproduces it. The hard part isn't the training — it's everything before it: deduping, culling bad frames, fixing skewed distribution, captioning, and exporting in the folder structure your trainer actually expects.
 
-## What it does
+`pixel-curator` is a terminal-based CLI that does that entire pipeline. No GUI, no accounts, no cloud — every byte stays on your machine.
+
+It is built primarily for **subject / identity training** — the case where the goal is model likeness: a DreamBooth fine-tune or a LoRA that reliably reproduces one specific target from a large personal image or video archive. The curation core is generic enough to be repurposed, but the default workflow, scoring signals, and export targets are optimized for likeness training.
+
+---
+
+## Why this exists
+
+If you've collected 1,000+ images of a subject, the failures happen before the first training step:
+
+- A large fraction are near-duplicates — burst shots, adjacent video frames, minor crops
+- Some are technically unusable — low resolution, soft focus, compression artifacts
+- The distribution is skewed — hundreds of shots from one angle, almost none from another
+- Captioning is a second project on its own
+- Handing a raw folder of 1,792 images to a Colab notebook is a fast route to disconnects, VRAM exhaustion, and daily-limit lockouts
+
+A well-curated 200–500 image subset reliably outperforms a messy 2,000 on likeness training. Most of the work is figuring out which subset that is. That's what this tool is for.
+
+---
+
+## Pipeline
+
+Every stage is resumable, dry-run by default where mutations are possible, and tracked in a SQLite manifest.
 
 | Stage | Command | What happens |
 |---|---|---|
 | Set up | `init`, `doctor` | Scaffold a project file, verify dependencies (ffmpeg, models, backends) |
-| Ingest | `extract`, `photos`, `smart-extract` | Frame extraction from video (HDR-aware, adaptive FPS, segmented + resumable) and photo import (JPEG/PNG/WebP/HEIC) |
+| Ingest | `extract`, `photos`, `smart-extract` | Frame extraction from video (HDR-aware, adaptive FPS, resumable) and photo import (JPEG/PNG/WebP/HEIC) |
 | Filter | `prefilter` | Fast multiprocessed pass to drop technically unusable frames |
-| Score | `curate` | Optical quality scoring, dedup (perceptual hash), status assignment |
+| Score | `curate` | Optical quality scoring, perceptual-hash dedup, per-frame status assignment |
 | Cluster | `cluster`, `viz` | CLIP embeddings cached in the manifest, k-means clustering, embedding maps |
-| Caption | `caption` | WD14 tagger (auto-downloads), ONNX or Apple-Silicon MPS backend |
-| Semantic filter | `filter` | Keep/drop frames matching a text query ("beach photos", "images with watermarks") |
+| Caption | `caption`, `florence` | WD14 tagger (auto-downloads) or Florence-2 natural-language captions |
+| Semantic filter | `filter` | Keep/drop frames matching a CLIP text query ("beach photos", "images with watermarks") |
 | Review | `review export` / `review import` | Static HTML report + spreadsheet keep/reject round-trip |
-| Export | `export manifest`, `export select`, `package` | Flat CSV/JSONL/Parquet manifest; top-N%/threshold/balanced selections (copy or symlink); Kohya LoRA and DreamBooth instance packages |
+| Export | `export manifest`, `export select`, `package` | Flat CSV/JSONL/Parquet manifest; top-N% / threshold / balanced selections; **Kohya LoRA and DreamBooth instance packages** |
 | Train & eval | `train`, `eval`, `likeness`, `pick-epoch` | Optional LoRA training and identity-likeness evaluation |
 | Operate | `stats`, `health`, `backup`, `restore`, `selftest` | Manifest stats, pipeline health, safety nets, smoke tests |
 
-Everything is **dry-run by default** where mutations are possible, and every long stage is **resumable** through a SQLite manifest that tracks sources, frames, scores, captions, embeddings, clusters, dataset versions, and full lineage.
+---
+
+## What "training-ready" means here
+
+Two export paths, both first-class:
+
+**DreamBooth** — `package kohya --mode dreambooth` produces a numbered `instance/` folder matching the standard Colab DreamBooth notebooks:
+
+```
+instance/
+  000001.jpg
+  000001.txt
+  000002.jpg
+  000002.txt
+dataset_config.toml
+```
+
+Point any DreamBooth trainer at the folder and train. Captions are assembled from the manifest's tags and quality metadata at packaging time — no model calls needed during export.
+
+**LoRA (multi-concept)** — `package kohya --mode lora` produces `concept_<target>/` folders with a `dataset_config.toml` ready for in-house Kohya `sd-scripts` setups.
+
+Before packaging, `export select` materializes a curated slice into a folder:
+
+- `--top-pct 10` — best 10% by unified score, symlinks by default (cull an 80 GB library without copying a byte)
+- `--min-score 0.8` — everything above a threshold, real copies with caption sidecars
+- `--balanced 500` — 500 frames spread evenly across CLIP clusters (run `cluster` first)
+
+Every selection folder includes a `selection_manifest.csv` mapping outputs back to their sources.
+
+The unified score is face-aware quality (0–1) when available, otherwise the percentile rank of sharpness — so thresholds mean the same thing regardless of which scorers ran.
+
+---
 
 ## Install
 
-Requires Python 3.10+ and ffmpeg (for video extraction).
+Requires **Python 3.10+** and **ffmpeg** (for video extraction).
 
 ```bash
 git clone https://github.com/snoozey-mf-bnui/pixel-curator.git
@@ -37,36 +90,35 @@ Optional extras, installed only if you need them:
 ```bash
 pip install -e '.[caption]'   # WD14 tagging (onnxruntime, huggingface-hub)
 pip install -e '.[cluster]'   # CLIP embeddings / clustering / text filter (torch, open-clip)
-pip install -e '.[vlm]'       # transformers-based CLIP fallback
-pip install -e '.[parquet]'   # parquet manifest export (pandas, pyarrow)
-pip install -e '.[cv]'        # OpenCV-based quality scorers (opencv, scikit-learn)
+pip install -e '.[vlm]'       # Florence-2 captions (transformers)
+pip install -e '.[parquet]'   # parquet manifest export
+pip install -e '.[cv]'        # OpenCV-based quality scorers
 pip install -e '.[face]'      # identity / face analysis (insightface)
 pip install -e '.[train]'     # LoRA / DreamBooth training + eval (torch, diffusers)
 pip install -e '.[restore]'   # restoration post-processing (Real-ESRGAN, GFPGAN)
-pip install -e '.[heif]'      # HEIC/HEIF photo ingest (pillow-heif)
+pip install -e '.[heif]'      # HEIC/HEIF photo ingest
 pip install -e '.[viz]'       # UMAP / HDBSCAN embedding maps
 pip install -e '.[all]'       # everything
-pip install -e '.[dev]'       # contributor tooling (pytest, ruff)
+pip install -e '.[dev]'       # pytest, ruff
 ```
 
-The package version is read dynamically from `pixel_curator.__version__`, so
-`pip show pixel-curator` and `pixel-curator --version` always agree.
-
-Run either as an installed command or as a module:
+Run as an installed command or as a module:
 
 ```bash
 pixel-curator --help
 python -m pixel_curator --help
 ```
 
-## Quickstart
+---
+
+## Quickstart (likeness training)
 
 ```bash
 # 1. scaffold a project file and check your machine
 pixel-curator init
 pixel-curator -p myproject.toml doctor
 
-# 2. ingest: video frames and/or photos
+# 2. ingest: video frames and/or photos of your subject
 pixel-curator -p myproject.toml extract
 pixel-curator -p myproject.toml photos
 
@@ -74,53 +126,34 @@ pixel-curator -p myproject.toml photos
 pixel-curator -p myproject.toml prefilter
 pixel-curator -p myproject.toml curate
 
-# 4. (optional) captions + CLIP clustering
+# 4. captions + CLIP clustering (recommended for likeness training)
 pixel-curator -p myproject.toml caption
 pixel-curator -p myproject.toml cluster
 
-# 5. look at what survived
+# 5. inspect what survived
 pixel-curator -p myproject.toml stats
 pixel-curator -p myproject.toml review export --out review_round_1
 open review_round_1/index.html
 ```
 
-## Getting selections out (framework-agnostic)
-
-**Flat manifest** — every frame, every signal, one row each. Open in any spreadsheet or dataframe tool:
+Then pick a slice and package it:
 
 ```bash
-pixel-curator -p myproject.toml export manifest --out manifest.csv
-pixel-curator -p myproject.toml export manifest --out manifest.jsonl --format jsonl
-pixel-curator -p myproject.toml export manifest --out manifest.parquet --format parquet
+# DreamBooth-ready instance/ folder
+pixel-curator -p myproject.toml export select --out curated --top-pct 20 --mode copy
+pixel-curator -p myproject.toml package kohya \
+  --dataset curated \
+  --output dreambooth_pkg \
+  --mode dreambooth --apply
+
+# Or LoRA-ready concept_/ folders
+pixel-curator -p myproject.toml package kohya \
+  --dataset curated \
+  --output lora_pkg \
+  --mode lora --apply
 ```
 
-**Selection export** — materialize a slice into a folder. Symlink mode culls an 80 GB library without copying a byte:
-
-```bash
-# best 10% by unified score, as symlinks (zero-copy)
-pixel-curator -p myproject.toml export select --out best10 --top-pct 10
-
-# everything at or above score 0.8, real copies, with caption sidecars
-pixel-curator -p myproject.toml export select --out heroes --min-score 0.8 --mode copy
-
-# 500 frames spread evenly across CLIP clusters (run 'cluster' first)
-pixel-curator -p myproject.toml export select --out balanced500 --balanced 500
-```
-
-The unified `score` is `integrity` (0–1 face-aware quality) when present, otherwise the percentile rank of sharpness — so thresholds mean the same thing regardless of which scorers ran. Every selection folder includes a `selection_manifest.csv` index mapping outputs back to sources.
-
-**Training packages** — LoRA and DreamBooth are both first-class:
-
-```bash
-# LoRA (multi-concept): concept_<target>/ folders with dataset_config.toml
-pixel-curator -p myproject.toml package kohya --dataset <export_dir> --output <pkg_dir> --mode lora --apply
-
-# DreamBooth: a ready-to-train instance/ folder (000001.jpg + 000001.txt
-# captions, dataset_config.toml) matching the standard Colab notebooks
-pixel-curator -p myproject.toml package kohya --dataset <export_dir> --output <pkg_dir> --mode dreambooth --apply
-```
-
-The DreamBooth mode exports your curated selection as a numbered **instance image set** with matching caption files and a Kohya-style `dataset_config.toml` — point any DreamBooth trainer (Colab notebook, kohya sd-scripts, ai-toolkit) at the folder and train. Captions are assembled from the manifest's tags/quality metadata; no model calls needed at packaging time.
+---
 
 ## Semantic text filtering
 
@@ -137,6 +170,8 @@ pixel-curator -p myproject.toml filter --text "image with text or watermark" --i
 pixel-curator -p myproject.toml filter --text "beach photos" --apply
 ```
 
+---
+
 ## Visual review round-trip
 
 ```bash
@@ -147,7 +182,11 @@ pixel-curator -p myproject.toml review import --sheet review1/review_sheet.csv  
 pixel-curator -p myproject.toml review import --sheet review1/review_sheet.csv --apply   # commit
 ```
 
-`reject` sets a frame's status to `quarantined` (recoverable), `keep` sets `kept`. The HTML references your original files via `file://` URLs — nothing is copied, so it works on very large libraries.
+`reject` quarantines a frame (recoverable); `keep` marks it as kept. The HTML references originals via `file://` URLs — nothing is copied, so it works on very large libraries.
+
+This is also the workflow for trimming class / regularization images, which is one of the more effective fixes for weak likeness results.
+
+---
 
 ## Models
 
@@ -157,17 +196,20 @@ Core scoring needs no models. Optional capabilities download or locate their own
 |---|---|---|
 | WD14 captions | `SmilingWolf/wd-swinv2-tagger-v3` (~450 MB) | auto-downloads from HuggingFace on first run |
 | CLIP clustering / text filter | ViT-B-32 (open_clip, laion2b) | auto-downloads on first run |
-| Identity scoring | InsightFace `buffalo_l` (+ optional `inswapper_128.onnx`) | auto-downloads via the `insightface` package |
-| Face restoration | GFPGANv1.4.pth | auto-downloads into `pixel_curator/models/gfpgan/` on first run |
-| Upscaling | RealESRGAN_x4plus.pth | auto-downloads into `pixel_curator/models/realesrgan/` on first run |
+| Identity scoring | InsightFace `buffalo_l` (+ optional `inswapper_128.onnx`) | auto-downloads via `insightface` |
+| Florence-2 captions | `microsoft/Florence-2-base` or local fine-tunes | place fine-tunes in `pixel_curator/models/vlm/florence2/` |
+| Face restoration | `GFPGANv1.4.pth` | place in `pixel_curator/models/gfpgan/` |
+| Upscaling | `RealESRGAN_x4plus.pth` | place in `pixel_curator/models/realesrgan/` |
 
 Model weights are gitignored — the repo never carries them.
 
+---
+
 ## Compute providers (CUDA / CoreML / CPU)
 
-Everything auto-detects: `auto` picks **CUDA → MPS/CoreML → CPU** depending on the machine, so the same repo runs on an NVIDIA/Linux box, a Colab A100, or Apple Silicon unchanged. On CUDA, TF32 and bf16/fp16 autocast are enabled automatically.
+Everything auto-detects: `auto` picks CUDA → MPS/CoreML → CPU depending on the machine, so the same repo runs on an NVIDIA/Linux box, a Colab A100, or Apple Silicon unchanged. On CUDA, TF32 and bf16/fp16 autocast are enabled automatically.
 
-To pin a dedicated provider, set it once in your project file:
+Pin a dedicated provider in the project file:
 
 ```toml
 [runtime]
@@ -177,11 +219,13 @@ precision = "auto"     # auto | float32 | float16 | bfloat16
 allow_tf32 = true
 ```
 
-`device` drives torch workloads (CLIP); `provider` drives ONNX workloads (WD14 tagging, InsightFace likeness, orientation, quality signals). An unavailable choice degrades to CPU with a note — check what was selected with:
+`device` drives torch workloads (CLIP, Florence-2); `provider` drives ONNX workloads (WD14 tagging, InsightFace likeness, orientation, quality signals). An unavailable choice degrades to CPU with a note — verify with:
 
 ```bash
 pixel-curator -p myproject.toml doctor    # shows device, dtype, providers
 ```
+
+---
 
 ## Project files
 
@@ -206,6 +250,17 @@ batch_size = 32
 
 Every command takes `-p/--project`; most also accept `--json` for scripting.
 
+---
+
+## Design guarantees
+
+- **Source media is never modified** — extraction, scoring, and export only read originals; selection exports write to a new folder.
+- **Resumable** — the SQLite manifest tracks what's done; re-running a stage picks up where it stopped.
+- **Graceful degradation** — every optional model/backend falls back with a clear warning instead of crashing.
+- **Dry-run first** — status-changing commands report what they would do unless you pass `--apply`.
+
+---
+
 ## Tests
 
 ```bash
@@ -214,12 +269,11 @@ python -m pytest                  # unit tests (pip install -e '.[dev]')
 ruff check pixel_curator          # lint
 ```
 
-## Design guarantees
+---
 
-- **Source media is never modified** — extraction, scoring, and export only read originals; selection exports write to a new folder.
-- **Resumable** — the SQLite manifest tracks what's done; re-running a stage picks up where it stopped.
-- **Graceful degradation** — every optional model/backend falls back with a clear warning instead of crashing.
-- **Dry-run first** — status-changing commands report what they *would* do unless you pass `--apply`.
+## Scope note
+
+The curation core — extract, score, dedupe, cluster, caption, filter, review, export — is content-agnostic and will work on any image archive. But every default in the tool is chosen with likeness training in mind: face-aware quality scoring, identity-likeness evaluation, class-image trimming via the review round-trip, and DreamBooth / LoRA export as the two first-class output formats. If you're training a subject or a style model, you're the target user.
 
 ## License
 
