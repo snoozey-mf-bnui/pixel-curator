@@ -13,7 +13,7 @@ Design principles:
   - Safety: age-uncertain images are routed to a blocked "review_set";
     low-quality images are routed to "reject_low_quality". Recipe names are
     professional and contain no unsafe vocabulary.
-  - Florence-independent: when visual_focus/Florence metadata is absent,
+  - Caption-independent: when visual_focus/caption metadata is absent,
     routing falls back to WD14 tags + quality signals.
   - Dry-run by default: ``build_specialized_recipe_plan`` writes plan files
     but does not build datasets; ``generate_dataset_build_plan`` only
@@ -202,7 +202,7 @@ class SpecializedRecipeBuilderConfig:
     use_wd14_tags: bool = True
     use_quality_signals: bool = True
     use_visual_focus: bool = True
-    use_florence_optional: bool = True
+    use_captions_optional: bool = True
 
 
 # ============================ helpers =======================================

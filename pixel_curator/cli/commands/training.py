@@ -14,7 +14,7 @@ def cmd_train(ctx: Context):
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     tcmd = getattr(args, "train_cmd", None)
     if tcmd == "plan":
-        from ..train.recipe_builder import (
+        from ...train.recipe_builder import (
             TrainingRecipeConfig,
             build_training_recipe,
             write_training_recipe,
@@ -48,7 +48,7 @@ def cmd_train(ctx: Context):
                 print(f"wrote {k}: {v}")
         return
     elif tcmd == "stack-plan":
-        from ..train.stack_planner import build_training_stack_plan
+        from ...train.stack_planner import build_training_stack_plan
         plan = build_training_stack_plan(
             [Path(p).expanduser() for p in args.recipes],
             Path(args.output).expanduser(), args.base_model_profile)
@@ -71,7 +71,7 @@ def cmd_train(ctx: Context):
 def cmd_likeness(ctx: Context):
     """Handler for the `likeness` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.likeness import render_likeness, run_likeness
+    from ...eval.likeness import render_likeness, run_likeness
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -86,7 +86,7 @@ def cmd_likeness(ctx: Context):
 def cmd_leaderboard(ctx: Context):
     """Handler for the `leaderboard` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.leaderboard import build_leaderboard, head_to_head, render_leaderboard
+    from ...eval.leaderboard import build_leaderboard, head_to_head, render_leaderboard
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -140,7 +140,7 @@ def cmd_mergeforge(ctx: Context):
             print(f"  note: {n}")
         print(f"Recipe draft id: {plan['recipe_draft']['recipe_id']}")
     elif args.mf_cmd == "merge":
-        from ..eval.matrix import parse_lora_specs
+        from ...eval.matrix import parse_lora_specs
         loras = []
         for spec in args.lora:
             loras.extend(parse_lora_specs(spec))
@@ -192,7 +192,7 @@ def cmd_concept(ctx: Context):
                     lx.save_sidecar(_P(c.path), c.profile)
                     print(f"  sidecar -> {sp.name}")
     elif args.concept_cmd == "stack":
-        from ..stack_intelligence import resolve_stack
+        from ...stack_intelligence import resolve_stack
         sel, weights = [], {}
         by_id = {c.lora_id: c for c in cards}
         for spec in args.lora:
@@ -219,7 +219,7 @@ def cmd_concept(ctx: Context):
         import json as _json
         from pathlib import Path as _P
 
-        from ..batch_variations import VariationGrid, expand_grid, run_batch_generator, save_batch
+        from ...batch_variations import VariationGrid, expand_grid, run_batch_generator, save_batch
         spec = _json.loads(_P(args.spec).expanduser().read_text())
         sel_ids = set(spec.pop("loras", []))
         sel = [c for c in cards if not sel_ids or c.lora_id in sel_ids]
@@ -244,7 +244,7 @@ def cmd_concept(ctx: Context):
 def cmd_registry(ctx: Context):
     """Handler for the `registry` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..registry import best_likeness, build_registry
+    from ...registry import best_likeness, build_registry
     conn = manifest.connect(prj.output_path)
     entries = build_registry(prj, conn)
     if not entries:
@@ -261,7 +261,7 @@ def cmd_card(ctx: Context):
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     conn = manifest.connect(prj.output_path)
     if args.run:
-        from ..model_card import generate_model_card
+        from ...model_card import generate_model_card
         try:
             path, _md = generate_model_card(
                 conn, prj, prj.output_path, args.run,
@@ -275,7 +275,7 @@ def cmd_card(ctx: Context):
         print("Usage: card <lora-name>  (legacy registry card)\n"
               "   or: card --run <run_name>  (Phase 3 model card)")
         return
-    from ..registry import model_card
+    from ...registry import model_card
     path = model_card(prj, conn, args.name)
     print(f"Model card: {path}" if path else f"Unknown LoRA: {args.name}")
 
@@ -283,10 +283,10 @@ def cmd_card(ctx: Context):
 def cmd_eval(ctx: Context):
     """Handler for the `eval` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.run_eval import evaluate_run, render_eval
+    from ...eval.run_eval import evaluate_run, render_eval
     conn = manifest.connect(out_base(args.output))
     if args.generate_samples:
-        from ..sweep import SweepConfig, sweep_generator
+        from ...sweep import SweepConfig, sweep_generator
         print("Rendering + scoring eval samples via the best-epoch "
               "sweep (Forge required)...")
         for update in sweep_generator(prj, SweepConfig(
@@ -307,7 +307,7 @@ def cmd_eval(ctx: Context):
 def cmd_sweep(ctx: Context):
     """Handler for the `sweep` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..sweep import SweepConfig, sweep_generator
+    from ...sweep import SweepConfig, sweep_generator
     cats = [c.strip() for c in args.categories.split(",") if c.strip()]
     cfg = SweepConfig(
         output_base=out_base(args.output), run=args.run,
@@ -323,8 +323,8 @@ def cmd_sweep(ctx: Context):
 def cmd_merge(ctx: Context):
     """Handler for the `merge` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.matrix import parse_lora_specs
-    from ..merge import MergeConfig, merge_generator, parse_block_string
+    from ...eval.matrix import parse_lora_specs
+    from ...merge import MergeConfig, merge_generator, parse_block_string
     loras = []
     for spec in args.lora:
         loras.extend(parse_lora_specs(spec))
@@ -336,8 +336,8 @@ def cmd_merge(ctx: Context):
     for update in merge_generator(prj, cfg):
         print(update)
     if args.preview:
-        from ..eval.matrix import MatrixConfig, matrix_generator
-        from ..merge import safe_slug as _slug
+        from ...eval.matrix import MatrixConfig, matrix_generator
+        from ...merge import safe_slug as _slug
         lora_dir = Path(prj.lora_output_dir
                         or (prj.output_path / "LORA_OUTPUT")).expanduser()
         merged = lora_dir / f"{_slug(args.name)}.safetensors"
@@ -354,7 +354,7 @@ def cmd_merge(ctx: Context):
 def cmd_combo(ctx: Context):
     """Handler for the `combo` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..merge import combo_generator
+    from ...merge import combo_generator
     for update in combo_generator(
         prj, out_base(args.output), character=args.character,
         style=args.style, outfit=args.outfit, name=args.name,
@@ -367,7 +367,7 @@ def cmd_combo(ctx: Context):
 def cmd_matrix(ctx: Context):
     """Handler for the `matrix` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.matrix import CATEGORIES, MatrixConfig, matrix_generator
+    from ...eval.matrix import CATEGORIES, MatrixConfig, matrix_generator
     cats = ([c.strip() for c in args.categories.split(",") if c.strip()]
             or list(CATEGORIES))
     cfg = MatrixConfig(
@@ -384,7 +384,7 @@ def cmd_matrix(ctx: Context):
 def cmd_evals(ctx: Context):
     """Handler for the `evals` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.matrix import eval_summary
+    from ...eval.matrix import eval_summary
     conn = manifest.connect(prj.output_path)
     rows = eval_summary(conn)
     if not rows:
@@ -400,7 +400,7 @@ def cmd_evals(ctx: Context):
 def cmd_presets(ctx: Context):
     """Handler for the `presets` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train import PRESETS
+    from ...train import PRESETS
     for name, p in PRESETS.items():
         print(f"  {name:<10} dim {p['network_dim']}/{p['network_alpha']:<3} "
               f"lr {p['unet_lr']}/{p['te_lr']} batch {p['batch_size']} "
@@ -410,7 +410,7 @@ def cmd_presets(ctx: Context):
 def cmd_suggest_preset(ctx: Context):
     """Handler for the `suggest-preset` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train.preset_recommender import format_recommendation, suggest_preset
+    from ...train.preset_recommender import format_recommendation, suggest_preset
     conn = manifest.connect(out_base(args.output))
     try:
         rec = suggest_preset(conn, args.dataset,
@@ -418,7 +418,7 @@ def cmd_suggest_preset(ctx: Context):
         params = None
         if getattr(args, "with_params", True) \
                 and rec.get("recommended_preset"):
-            from ..train.param_advisor import recommend_training_params, render_params
+            from ...train.param_advisor import recommend_training_params, render_params
             try:
                 params = recommend_training_params(
                     conn, args.dataset,
@@ -450,7 +450,7 @@ def cmd_suggest_preset(ctx: Context):
 def cmd_training_config(ctx: Context):
     """Handler for the `training-config` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train.export_config import generate_training_bundle
+    from ...train.export_config import generate_training_bundle
 
     def _coerce(v: str):
         for cast in (int, float):
@@ -511,7 +511,7 @@ def cmd_training_config(ctx: Context):
 def cmd_train_legacy(ctx: Context):
     """Handler for the `train-legacy` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train.kohya import TrainConfig, train_generator
+    from ...train.kohya import TrainConfig, train_generator
     overrides = {}
     for kv in args.set:
         if "=" in kv:
@@ -544,7 +544,7 @@ def cmd_recipes(ctx: Context):
 def cmd_pick_epoch(ctx: Context):
     """Handler for the `pick-epoch` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.epoch_sweep import EpochSweepConfig, epoch_sweep_generator, parse_weights
+    from ...eval.epoch_sweep import EpochSweepConfig, epoch_sweep_generator, parse_weights
     lora_dir = args.lora_dir or prj.lora_output_dir
     if not lora_dir:
         print("FATAL: no --lora-dir and project lora_output_dir is unset.")
@@ -563,8 +563,8 @@ def cmd_pick_epoch(ctx: Context):
 def cmd_tune_stack(ctx: Context):
     """Handler for the `tune-stack` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..eval.epoch_sweep import parse_weights
-    from ..eval.stack_tune import StackTuneConfig, parse_concept_ranges, stack_tune_generator
+    from ...eval.epoch_sweep import parse_weights
+    from ...eval.stack_tune import StackTuneConfig, parse_concept_ranges, stack_tune_generator
     cfg = StackTuneConfig(
         output_base=out_base(args.output), identity_lora=args.identity,
         concepts=parse_concept_ranges(args.concepts),
@@ -579,8 +579,8 @@ def cmd_tune_stack(ctx: Context):
 def cmd_specialized_recipes(ctx: Context):
     """Handler for the `specialized-recipes` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..services import specialized_recipe_builder as rb
-    from ..services import visual_focus_classifier as _vc
+    from ...services import specialized_recipe_builder as rb
+    from ...services import visual_focus_classifier as _vc
     recs = []
     if args.input:
         ip = Path(args.input).expanduser()
@@ -596,10 +596,10 @@ def cmd_specialized_recipes(ctx: Context):
         if not recs:
             print("no visual_focus_classifications.jsonl found - falling "
                   "back to manifest WD14 tags + quality signals")
-    # Florence-independent fallback: read WD14 tags + quality from the
-    # manifest via the dataset explorer (works without visual_focus/Florence)
+    # Caption-independent fallback: read WD14 tags + quality from the
+    # manifest via the dataset explorer (works without visual_focus/captions)
     if not recs and (prj.output_path / DB_NAME).exists():
-        from ..services import dataset_explorer as _dx
+        from ...services import dataset_explorer as _dx
         if getattr(args, "process_all", False):
             erecs = _dx.load_all_image_records(
                 prj.output_path, _dx.ExplorerFilter(limit=_dx.MAX_PAGE_SIZE),
@@ -637,7 +637,7 @@ def cmd_specialized_recipes(ctx: Context):
                 plan, Path(args.project_toml).expanduser())
     written = rb.write_specialized_recipe_plan(plan, out, overwrite=args.overwrite)
     try:
-        from ..services import status_writer as sw
+        from ...services import status_writer as sw
         sw.write_specialized_recipe_status(str(out))
     except Exception:
         logger.debug("suppressed exception", exc_info=True)

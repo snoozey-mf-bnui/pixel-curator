@@ -29,6 +29,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sub.add_parser("doctor", help="Check dependencies")
     sub.add_parser("stats", help="Show manifest statistics")
 
+    p_mod = sub.add_parser(
+        "models", help="List required AI models and download missing ones "
+                       "(first-run setup)")
+    p_mod.add_argument("models_cmd", nargs="?", default="status",
+                       choices=("status", "download"),
+                       help="status (default) or download")
+    p_mod.add_argument("--only", default=None,
+                       help="comma-separated model keys to download "
+                            "(default: everything missing)")
+    p_mod.add_argument("--json", action="store_true")
+
     p_ov = sub.add_parser(
         "overview", help="One-screen status: frame funnel, caption/quality "
                          "coverage, pending work + next commands, paused "
@@ -253,15 +264,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p_cat.add_argument("--json", action="store_true")
     p_cat.add_argument("--output", default=None)
 
-    p_vl = sub.add_parser(
-        "vlm-caption", help="Dual captioning: add optional Florence-2/VLM natural-"
-                            "language scene descriptions alongside WD14 tags")
-    p_vl.add_argument("--model", default="microsoft/Florence-2-base")
-    p_vl.add_argument("--compose", action="store_true",
-                      help="merge the VLM description into the trained caption_text")
-    p_vl.add_argument("--limit", type=int, default=0)
-    p_vl.add_argument("--output", default=None)
-
     p_of = sub.add_parser(
         "outfit", help="Outfit/accessory separation: tag frames by dominant "
                        "clothing colour + garments for clean outfit datasets")
@@ -461,11 +463,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p_ca.add_argument("--force", action="store_true")
     p_ca.add_argument("--repo-id", default="SmilingWolf/wd-swinv2-tagger-v3")
     p_ca.add_argument("--tagger", default=None,
-                      choices=("wd14", "mps", "florence"),
+                      choices=("wd14", "mps"),
                       help="Tagging backend: wd14 (ONNX, current default) | "
                            "mps (same WD14-v3 weights on the Apple Silicon "
-                           "GPU via torch+timm) | florence (Florence-2 "
-                           "prose). Unavailable backends fall back to wd14. "
+                           "GPU via torch+timm). Unavailable backends fall "
+                           "back to wd14. "
                            "Unset -> project.toml default_tagger -> wd14.")
     p_ca.add_argument("--reprune", action="store_true",
                       help="Rebuild caption_text from stored tags (no tagger, "
@@ -640,57 +642,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     vf_im.add_argument("--use-vlm-refinement", action="store_true")
     vf_im.add_argument("--json", action="store_true")
 
-    # Florence-2 natural-language captioning (optional external VLM backend)
-    p_fl = sub.add_parser(
-        "florence", help="Florence-2 natural-language captioning via the "
-                        "external VLM env (optional; complements WD14 tags)")
-    fl_sub = p_fl.add_subparsers(dest="fl_cmd")
-
-    def _fl_runtime_args(p):
-        p.add_argument("--model-variant", choices=("base-ft", "large-ft", "custom"),
-                       default="base-ft")
-        p.add_argument("--model-path", default="")
-        p.add_argument("--vlm-python", default=None)
-        p.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"),
-                       default="auto")
-        p.add_argument("--dtype", choices=("float32", "float16", "bfloat16", "auto"),
-                       default="float32")
-        p.add_argument("--local-files-only", dest="local_files_only",
-                       action="store_true", default=True)
-        p.add_argument("--allow-downloads", action="store_true", default=False)
-        p.add_argument("--json", action="store_true")
-
-    fl_chk = fl_sub.add_parser("check", help="Report Florence runtime readiness")
-    _fl_runtime_args(fl_chk)
-
-    fl_img = fl_sub.add_parser("image", help="Caption a single image")
-    _fl_runtime_args(fl_img)
-    fl_img.add_argument("--image", required=True)
-    fl_img.add_argument("--task", default="<MORE_DETAILED_CAPTION>")
-    fl_img.add_argument("--mode", default="caption",
-                        choices=("caption", "dense_caption", "analysis", "routing"))
-    fl_img.add_argument("--sidecars", action="store_true",
-                        help="write <stem>.florence.json/.txt next to output")
-
-    fl_bat = fl_sub.add_parser("batch", help="Caption a dataset directory")
-    _fl_runtime_args(fl_bat)
-    fl_bat.add_argument("--dataset", required=True)
-    fl_bat.add_argument("--output", default=None)
-    fl_bat.add_argument("--mode", default="caption",
-                        choices=("caption", "dense_caption", "analysis", "routing"))
-    fl_bat.add_argument("--limit", type=int, default=None)
-
     # Visual Focus Classification & Routing (metadata-only routing layer)
     p_cls = sub.add_parser(
-        "classify", help="Visual focus classification & routing from Florence + "
+        "classify", help="Visual focus classification & routing from "
                         "quality metadata (no model load)")
     cls_sub = p_cls.add_subparsers(dest="classify_cmd")
     cls_vf = cls_sub.add_parser(
-        "visual-focus", help="Route a Florence-captions JSONL or dataset")
+        "visual-focus", help="Route a captions JSONL or dataset")
     cls_vf.add_argument("--input", default=None,
-                        help="florence_captions.jsonl (or any record JSONL)")
+                        help="captions.jsonl (or any record JSONL)")
     cls_vf.add_argument("--dataset", default=None,
-                        help="dir containing florence_captions.jsonl")
+                        help="dir containing captions.jsonl")
     cls_vf.add_argument("--output", default=None)
     cls_vf.add_argument("--limit", type=int, default=None)
     cls_vf.add_argument("--overwrite", action="store_true")
@@ -698,7 +660,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     cls_im = cls_sub.add_parser(
         "visual-focus-image", help="Route a single image's metadata")
     cls_im.add_argument("--image", required=True)
-    cls_im.add_argument("--florence-json", default=None)
+    cls_im.add_argument("--captions-json",
+                        dest="captions_json", default=None,
+                        help="caption-record JSON for the image")
     cls_im.add_argument("--quality-json", default=None)
     cls_im.add_argument("--json", action="store_true")
 

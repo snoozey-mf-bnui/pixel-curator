@@ -137,11 +137,6 @@ class ExplorerFilter:
     vf_pose: str | None = None
     vf_target: str | None = None
     vf_min_score: float | None = None
-    # Florence-2 caption filters (applied when results are present)
-    fl_processed: bool | None = None
-    fl_focus: str | None = None
-    fl_routing_tag: str | None = None
-    caption_natural_query: str = ""
     # Visual focus routing filters (applied when routing results are present)
     rt_focus: str | None = None
     rt_detail: str | None = None
@@ -175,8 +170,6 @@ class ExplorerFilter:
                     or self.duplicate_status or self.vf_focus or self.vf_detail
                     or self.vf_pose or self.vf_target
                     or self.vf_min_score is not None
-                    or self.fl_processed is not None or self.fl_focus
-                    or self.fl_routing_tag or self.caption_natural_query
                     or self.rt_focus or self.rt_detail or self.rt_pose
                     or self.rt_tag or self.rt_target
                     or self.rt_recipe or self.rt_min_confidence is not None
@@ -577,22 +570,6 @@ def _load_visual_focus_map(output_base) -> dict:
     return {}
 
 
-def _load_florence_map(output_base) -> dict:
-    """Optional merge source: Florence-2 caption results (basename -> fields)."""
-    try:
-        from . import florence_captioning as flc
-    except Exception:
-        return {}
-    base = Path(output_base).expanduser()
-    for cand in (base / flc.RESULTS_NAME, base / "florence" / flc.RESULTS_NAME):
-        if cand.exists():
-            try:
-                return flc.results_by_filename(cand)
-            except Exception:
-                return {}
-    return {}
-
-
 def _load_routing_map(output_base) -> dict:
     """Optional merge source: visual-focus routing results (basename -> fields)."""
     try:
@@ -716,7 +693,6 @@ def load_image_records(output_base, filters: ExplorerFilter | None = None) -> li
                 "GROUP BY dhash HAVING COUNT(*) > 1")}
         version_filter = flt.version
         vf_map = _load_visual_focus_map(output_base)
-        fl_map = _load_florence_map(output_base)
         rt_map = _load_routing_map(output_base)
         rp_map = _load_recipe_plan_map(output_base)
         pkg_map = _load_package_map(output_base)
@@ -725,9 +701,6 @@ def load_image_records(output_base, filters: ExplorerFilter | None = None) -> li
             vf = vf_map.get(rec.filename) if vf_map else None
             if vf:
                 rec.metadata["visual_focus"] = vf
-            fl = fl_map.get(rec.filename) if fl_map else None
-            if fl:
-                rec.metadata["florence"] = fl
             rt = rt_map.get(rec.filename) if rt_map else None
             if rt:
                 rec.metadata["routing"] = rt
@@ -777,17 +750,6 @@ def load_image_records(output_base, filters: ExplorerFilter | None = None) -> li
             if flt.pkg_type and (not pkg or flt.pkg_type not in
                                  (pkg.get("package_types") or [])):
                 return False
-            if flt.fl_processed is not None and bool(
-                    fl and fl.get("florence_processed")) != flt.fl_processed:
-                return False
-            if flt.fl_focus and (not fl or fl.get("primary_focus") != flt.fl_focus):
-                return False
-            if flt.fl_routing_tag and (not fl or flt.fl_routing_tag not in
-                                       (fl.get("routing_tags") or [])):
-                return False
-            if flt.caption_natural_query and (
-                    not fl or flt.caption_natural_query.lower()
-                    not in (fl.get("caption_natural") or "").lower()):
                 return False
             if flt.vf_focus and (not vf or vf.get("primary_focus") != flt.vf_focus):
                 return False
@@ -833,10 +795,6 @@ def load_image_records(output_base, filters: ExplorerFilter | None = None) -> li
                     vf = vf_map.get(rec.filename)
                     if vf:
                         rec.metadata["visual_focus"] = vf
-                if fl_map:
-                    fl = fl_map.get(rec.filename)
-                    if fl:
-                        rec.metadata["florence"] = fl
                 if rt_map:
                     rt = rt_map.get(rec.filename)
                     if rt:

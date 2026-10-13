@@ -355,7 +355,7 @@ MIGRATIONS: dict[int, str] = {
         CREATE INDEX IF NOT EXISTS idx_fq_version
             ON frame_quality(metric_version);
     """,
-    # v16 - Priority 3 controllability: optional VLM (Florence-2) rich captions
+    # v16 - Priority 3 controllability: optional VLM rich captions
     # alongside WD14 tags, and an outfit/accessory separation layer.
     16: """
         ALTER TABLE captions ADD COLUMN vlm_text TEXT;

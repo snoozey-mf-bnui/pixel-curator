@@ -17,23 +17,53 @@ def cmd_init(ctx: Context):
           f"pixel-curator -p {path} health")
 
 
+def cmd_models(ctx: Context):
+    """Handler for the `models` command: status + first-run downloads."""
+    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    from ...model_assets import download_missing, status
+    if args.models_cmd == "download":
+        keys = ([k.strip() for k in args.only.split(",") if k.strip()]
+                if args.only else None)
+        results = download_missing(keys)
+        failed = [k for k, ok in results.items() if not ok]
+        if failed:
+            print(f"failed: {', '.join(failed)}")
+            raise SystemExit(1)
+        return
+    rows = status()
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return
+    for r in rows:
+        mark = "OK " if r["installed"] else "-- "
+        opt = " (optional)" if r["optional"] else ""
+        print(f"{mark}{r['key']:<24} ~{r['size_mb']:>4} MB{opt}  "
+              f"{r['purpose']}")
+        if r["installed"] and r["path"]:
+            print(f"    {r['path']}")
+    missing = [r["key"] for r in rows if not r["installed"]]
+    if missing:
+        print(f"\n{len(missing)} not downloaded - they auto-download on "
+              f"first use, or fetch now: pixel-curator models download")
+
+
 def cmd_doctor(ctx: Context):
     """Handler for the `doctor` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     print(json.dumps(check_dependencies(), indent=2))
-    from ..util import project_data_plane
+    from ...util import project_data_plane
     plane = project_data_plane(prj)
     print("\nProject data plane:")
     print(json.dumps(plane, indent=2))
-    from ..curate import smart_available
+    from ...curate import smart_available
     ok, reason = smart_available()
     print(f"smart curation: {'available' if ok else reason}")
-    from ..runtime import configure_from_project, onnx_providers
+    from ...runtime import configure_from_project, onnx_providers
     info = configure_from_project(prj)
     print("\nRuntime / accelerator:")
     print(json.dumps(info, indent=2))
     print(f"onnxruntime providers: {onnx_providers()}")
-    from ..curate.performance import detect_compute_device
+    from ...curate.performance import detect_compute_device
     print("\nCuration compute device:")
     print(json.dumps(detect_compute_device(), indent=2))
     if not plane["ok"]:
@@ -55,7 +85,7 @@ def cmd_stats(ctx: Context):
 def cmd_overview(ctx: Context):
     """Handler for the `overview` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..overview import overview_report, render_overview
+    from ...overview import overview_report, render_overview
     rep = overview_report(prj, out_base(args.output))
     print(json.dumps(rep, indent=2) if args.json
           else render_overview(rep))
@@ -64,7 +94,7 @@ def cmd_overview(ctx: Context):
 def cmd_validate(ctx: Context):
     """Handler for the `validate` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..validate import render_report, run_validation
+    from ...validate import render_report, run_validation
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -95,7 +125,7 @@ def cmd_selftest(ctx: Context):
 def cmd_watch(ctx: Context):
     """Handler for the `watch` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..maintenance import WatchConfig, watch_generator
+    from ...maintenance import WatchConfig, watch_generator
     cfg = WatchConfig(output_base=out_base(args.output),
                       interval=args.interval,
                       auto_curate=args.auto_curate, once=args.once)
@@ -109,7 +139,7 @@ def cmd_watch(ctx: Context):
 def cmd_gc(ctx: Context):
     """Handler for the `gc` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..maintenance import GcConfig, gc_generator
+    from ...maintenance import GcConfig, gc_generator
     for update in gc_generator(prj, GcConfig(
         output_base=out_base(args.output), apply=args.apply,
         keep_builds=args.keep_builds,
@@ -120,7 +150,7 @@ def cmd_gc(ctx: Context):
 def cmd_space(ctx: Context):
     """Handler for the `space` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..maintenance import space_report
+    from ...maintenance import space_report
     for row in space_report(prj, prj.output_path):
         print(f"  {row['area']:<16} {str(row['files']):>8} files  {row['human']:>10}")
 
@@ -128,7 +158,7 @@ def cmd_space(ctx: Context):
 def cmd_backup(ctx: Context):
     """Handler for the `backup` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..maintenance import backup_project
+    from ...maintenance import backup_project
     out = backup_project(prj, args.out or None)
     print(f"Backup written -> {out}")
 
@@ -136,7 +166,7 @@ def cmd_backup(ctx: Context):
 def cmd_restore(ctx: Context):
     """Handler for the `restore` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..maintenance import restore_project
+    from ...maintenance import restore_project
     dest = restore_project(args.archive, args.dest)
     print(f"Extracted to {dest} - review and place files manually.")
 
@@ -144,7 +174,7 @@ def cmd_restore(ctx: Context):
 def cmd_status(ctx: Context):
     """Handler for the `status` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..monitor import (
+    from ...monitor import (
         FollowConfig,
         follow_generator,
         render_status,
@@ -171,7 +201,7 @@ def cmd_status(ctx: Context):
 def cmd_runs(ctx: Context):
     """Handler for the `runs` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train.kohya import list_runs
+    from ...train.kohya import list_runs
     conn = manifest.connect(prj.output_path, readonly=True)
     rows = list_runs(conn)
     if not rows:
@@ -185,7 +215,7 @@ def cmd_runs(ctx: Context):
 def cmd_health(ctx: Context):
     """Handler for the `health` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..health import health_generator
+    from ...health import health_generator
     for update in health_generator(prj, out_base(args.output), args.open):
         print(update)
 
@@ -222,7 +252,7 @@ def cmd_diff(ctx: Context):
     conn = manifest.connect(out_base(args.output))
     if args.dataset:
         # Phase 2 visual diff mode: --dataset N --vs M
-        from ..dataset_diff import dataset_version_diff, render_dataset_diff
+        from ...dataset_diff import dataset_version_diff, render_dataset_diff
         try:
             d = dataset_version_diff(conn, out_base(args.output),
                                      args.dataset, args.vs)
@@ -243,7 +273,7 @@ def cmd_diff(ctx: Context):
         print("Usage: diff A B  (legacy membership diff)\n"
               "   or: diff --dataset N --vs M  (visual diff)")
         return
-    from ..builder import diff_datasets
+    from ...builder import diff_datasets
     try:
         d = diff_datasets(conn, args.a, args.b)
     except KeyError as exc:

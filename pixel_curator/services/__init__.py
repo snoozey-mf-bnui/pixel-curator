@@ -1,7 +1,7 @@
 """Shared runtime services for the CLI pipeline.
 
 These modules back the ``pixel_curator`` subcommands (training jobs, status
-writers, Florence captioning, merge services, ...) so no single command
+writers, visual-focus routing, merge services, ...) so no single command
 owns the logic.  Everything here is import-safe: no torch, no HEIF, no
 network at import time.
 """

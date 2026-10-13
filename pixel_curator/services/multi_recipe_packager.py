@@ -179,7 +179,7 @@ def _num(v) -> float | None:
 
 def _resolve_caption(rec: dict, cfg: MultiRecipePackagerConfig) -> str:
     """Caption priority: wd14 -> natural -> caption -> .txt sidecar -> fallback."""
-    fl = rec.get("florence") or {}
+    fl = rec.get("captions") or {}
     sources = {
         "caption_wd14": rec.get("caption_wd14") or rec.get("wd14_caption"),
         "caption_natural": rec.get("caption_natural") or fl.get("caption"),

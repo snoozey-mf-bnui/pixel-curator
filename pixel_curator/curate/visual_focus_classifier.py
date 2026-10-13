@@ -429,41 +429,42 @@ def _caption_hint(focus: str, pose: str, detail: str, tech: dict) -> str:
     return ", ".join(parts).capitalize() + "."
 
 
-_FLORENCE_FOCUS = {"portrait": "face_portrait", "upper_body": "upper_body_focus",
-                   "full_body": "full_body_pose", "outfit": "outfit_focus",
-                   "detail_texture": "close_crop_study",
-                   "composition": "composition_reference"}
-_FLORENCE_POSE = {"seated": "neutral_seated", "reclined": "reclined_pose",
-                  "dynamic": "dynamic_pose", "gesture": "gesture_forward",
-                  "close_crop": "close_crop_expressive", "neutral": "neutral_standing"}
-_FLORENCE_DETAIL = {"high": "high_detail", "moderate": "moderate_detail",
-                    "general": "general_detail"}
+_CAPTION_FOCUS = {"portrait": "face_portrait", "upper_body": "upper_body_focus",
+                  "full_body": "full_body_pose", "outfit": "outfit_focus",
+                  "detail_texture": "close_crop_study",
+                  "composition": "composition_reference"}
+_CAPTION_POSE = {"seated": "neutral_seated", "reclined": "reclined_pose",
+                 "dynamic": "dynamic_pose", "gesture": "gesture_forward",
+                 "close_crop": "close_crop_expressive", "neutral": "neutral_standing"}
+_CAPTION_DETAIL = {"high": "high_detail", "moderate": "moderate_detail",
+                   "general": "general_detail"}
 
 
-def _apply_florence(focus, detail, pose, existing_metadata):
+def _apply_caption_record(focus, detail, pose, existing_metadata):
+    """Fold optional caption-record attributes into unknown labels."""
     md = existing_metadata or {}
-    fl = md.get("florence")
-    attrs = fl.get("visual_attributes") if isinstance(fl, dict) else None
-    if attrs is None and isinstance(fl, dict):
-        attrs = fl
+    cap = md.get("captions") or md.get("caption_record")
+    attrs = cap.get("visual_attributes") if isinstance(cap, dict) else None
+    if attrs is None and isinstance(cap, dict):
+        attrs = cap
     if attrs is None:
-        attrs = {k.replace("florence_", ""): v for k, v in md.items()
-                 if k.startswith("florence_")} or None
+        attrs = {k.replace("caption_", ""): v for k, v in md.items()
+                 if k.startswith("caption_")} or None
     if not isinstance(attrs, dict):
         return focus, detail, pose
     if focus.label == "unknown":
-        mapped = _FLORENCE_FOCUS.get(attrs.get("primary_focus"))
+        mapped = _CAPTION_FOCUS.get(attrs.get("primary_focus"))
         if mapped:
             focus = LabelScore(mapped, 0.6, focus.alternatives,
-                               {"source": "florence"})
+                               {"source": "caption_record"})
     if pose.label == "unknown":
-        mapped = _FLORENCE_POSE.get(attrs.get("pose_type"))
+        mapped = _CAPTION_POSE.get(attrs.get("pose_type"))
         if mapped:
-            pose = LabelScore(mapped, 0.55, [], {"source": "florence"})
+            pose = LabelScore(mapped, 0.55, [], {"source": "caption_record"})
     if detail.label == "unknown":
-        mapped = _FLORENCE_DETAIL.get(attrs.get("detail_level"))
+        mapped = _CAPTION_DETAIL.get(attrs.get("detail_level"))
         if mapped:
-            detail = LabelScore(mapped, 0.55, [], {"source": "florence"})
+            detail = LabelScore(mapped, 0.55, [], {"source": "caption_record"})
     return focus, detail, pose
 
 
@@ -518,7 +519,8 @@ def classify_visual_focus(image_path, existing_metadata=None,
     detail = _decide_detail(md, cv, cfg)
     pose = _decide_pose(md, focus.label, cfg)
 
-    focus, detail, pose = _apply_florence(focus, detail, pose, existing_metadata)
+    focus, detail, pose = _apply_caption_record(focus, detail, pose,
+                                                existing_metadata)
 
     if max(focus.confidence, detail.confidence, pose.confidence) < cfg.min_confidence:
         flags.append("classification_uncertain")

@@ -1,6 +1,6 @@
 """Visual Focus Classification & Routing - shared service.
 
-A deterministic, metadata-only routing layer that sits on top of Florence-2
+A deterministic, metadata-only routing layer that sits on top of VLM/caption
 captions/attributes + existing quality signals and recommends which specialized
 training subset each image belongs to. It loads NO images and NO models - it
 reasons purely over already-computed metadata, so it is fast, testable, and
@@ -111,8 +111,8 @@ class VisualFocusClassifierConfig:
     good_score_threshold: float = 70.0
     review_score_threshold: float = 50.0
     block_specialized_routing_on_age_uncertain: bool = True
-    use_florence_caption: bool = True
-    use_florence_attributes: bool = True
+    use_caption_text: bool = True
+    use_caption_attributes: bool = True
     use_quality_signals: bool = True
     use_existing_dataset_metadata: bool = True
     allow_specialized_detail_routing: bool = True
@@ -162,7 +162,7 @@ class VisualFocusClassificationResult:
     routing_tags: list = field(default_factory=list)
     visual_summary: str = ""
     quality_summary: dict = field(default_factory=dict)
-    florence_summary: dict = field(default_factory=dict)
+    caption_summary: dict = field(default_factory=dict)
     review_flags: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
@@ -183,7 +183,7 @@ class VisualFocusClassificationResult:
             "routing_tags": list(self.routing_tags),
             "visual_summary": self.visual_summary,
             "quality_summary": self.quality_summary,
-            "florence_summary": self.florence_summary,
+            "caption_summary": self.caption_summary,
             "review_flags": list(self.review_flags),
             "warnings": list(self.warnings), "metadata": self.metadata}
 
@@ -204,24 +204,24 @@ def _clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
 
 
-def _extract_florence(src: dict | None) -> dict:
-    """Normalize varied Florence shapes into a flat dict of useful fields."""
+def _extract_caption_record(src: dict | None) -> dict:
+    """Normalize varied caption-record shapes into a flat dict of useful fields."""
     if not src:
         return {}
     fl = src
-    # explorer record may nest under 'florence'
-    if isinstance(src.get("florence"), dict):
-        fl = {**src, **src["florence"]}
+    # explorer record may nest under 'captions'
+    if isinstance(src.get("captions"), dict):
+        fl = {**src, **src["captions"]}
     attrs = fl.get("visual_attributes") if isinstance(
         fl.get("visual_attributes"), dict) else {}
     caption = (fl.get("caption") or fl.get("natural_caption")
                or fl.get("caption_natural") or attrs.get("natural_caption") or "")
     return {
         "caption": caption,
-        "present": bool(caption) or bool(fl.get("florence_processed"))
+        "present": bool(caption) or bool(fl.get("caption_processed"))
         or bool(fl.get("ok")),
         "source": fl.get("caption_natural_source")
-        or ("florence2" if fl.get("ok") else ""),
+        or ("vlm" if fl.get("ok") else ""),
         "primary_focus": attrs.get("primary_focus") or fl.get("primary_focus"),
         "pose_type": attrs.get("pose_type") or fl.get("pose_type"),
         "detail_level": attrs.get("detail_level") or fl.get("detail_level"),
@@ -230,8 +230,8 @@ def _extract_florence(src: dict | None) -> dict:
         "composition_type": attrs.get("composition_type")
         or fl.get("composition_type"),
         "routing_tags": fl.get("routing_tags") or attrs.get("routing_tags") or [],
-        "flags": fl.get("flags") or fl.get("florence_flags") or [],
-        "model_variant": fl.get("model_variant") or fl.get("florence_model_variant"),
+        "flags": fl.get("flags") or fl.get("caption_flags") or [],
+        "model_variant": fl.get("model_variant") or fl.get("caption_model_variant"),
     }
 
 
@@ -255,7 +255,7 @@ def _extract_quality(src: dict | None) -> dict:
     return out
 
 
-# Florence focus vocab -> primary focus label (+ secondary hints)
+# caption-record focus vocab -> primary focus label (+ secondary hints)
 _FOCUS_MAP = {
     "portrait": "portrait_focus", "head_and_shoulders": "head_and_shoulders_focus",
     "upper_body": "upper_body_composition", "torso": "torso_composition",
@@ -288,13 +288,13 @@ def _infer_primary(fl: dict, q: dict, caption: str) -> FocusPrediction:
     if fl_focus and fl_focus in _FOCUS_MAP:
         label = _FOCUS_MAP[fl_focus]
         conf = 0.78
-        evidence.append(f"Florence attributes indicate {fl_focus} composition.")
+        evidence.append(f"Caption attributes indicate {fl_focus} composition.")
     elif caption:
         low = caption.lower()
         for lab, keys in _CAPTION_FOCUS_RULES:
             if any(k in low for k in keys):
                 label, conf = lab, 0.66
-                evidence.append("Florence caption describes "
+                evidence.append("Caption text describes "
                                 f"{lab.replace('_', ' ')}.")
                 break
     # quality framing fallback
@@ -355,12 +355,12 @@ def _review_flags(fl: dict, q: dict, has_fl: bool, has_q: bool,
     if "# age safety handled below (NSFW mode - only from explicit metadata)" in src_flags:
         flags.append("# age safety handled below (NSFW mode - only from explicit metadata)")
     # Propagate upstream age-uncertain safety flag so _route() can gate
-    # specialized routing on it (set by florence_captioning when the
+    # specialized routing on it (set upstream when the
     # source metadata marks the image as age_uncertain).
     if "review_required_age_uncertain" in src_flags:
         flags.append("review_required_age_uncertain")
     if not has_fl:
-        flags.append("florence_missing")
+        flags.append("caption_missing")
     if not has_q:
         flags.append("quality_signals_missing")
     if not fl.get("caption"):
@@ -467,7 +467,7 @@ _FOCUS_TO_TAG = {
 
 
 def _route(primary, secondary, score, tier, flags, cfg):
-    # `review_required_age_uncertain` is set upstream by florence_captioning.py
+    # `review_required_age_uncertain` may be set upstream by the captioner
     # when md["age_uncertain"] is True, so checking the flag here is sufficient
     # (and avoids referencing `md`, which is not in scope for _route).
     age_block = ("review_required_age_uncertain" in flags
@@ -545,7 +545,7 @@ def _route(primary, secondary, score, tier, flags, cfg):
 
 
 def _infer_detail(fl: dict, q: dict, caption: str, cfg) -> FocusPrediction:
-    """Detail/texture tier from Florence detail_level + quality texture/sharpness."""
+    """Detail/texture tier from caption detail_level + quality texture/sharpness."""
     ev = []
     fl_detail = (fl.get("detail_level") or "").lower()
     low = (caption or "").lower()
@@ -556,9 +556,9 @@ def _infer_detail(fl: dict, q: dict, caption: str, cfg) -> FocusPrediction:
     parts = [p for p in (tex, sharp) if p is not None]
     if parts:
         score = sum(parts) / len(parts)
-    # Florence hint
+    # caption hint
     if fl_detail in ("high", "specialized_texture_study"):
-        ev.append("Florence indicates high fine-detail / texture visibility.")
+        ev.append("Caption record indicates high fine-detail / texture visibility.")
         label = ("specialized_texture_focus" if "texture" in low or fl_detail ==
                  "specialized_texture_study" else "high_detail_study")
         return FocusPrediction(label, 0.74, ev)
@@ -580,7 +580,7 @@ def _infer_detail(fl: dict, q: dict, caption: str, cfg) -> FocusPrediction:
         return FocusPrediction("low_detail", _clamp01(1 - score), ev)
     if fl_detail == "moderate":
         return FocusPrediction("moderate_detail", 0.55,
-                               ["Florence indicates moderate detail."])
+                               ["Caption record indicates moderate detail."])
     if caption:
         return FocusPrediction("general_reference", 0.5,
                                ["General reference clarity (no strong detail cue)."])
@@ -612,7 +612,7 @@ def _infer_pose(fl: dict, q: dict, caption: str, primary: str) -> FocusPredictio
     low = (caption or "").lower()
     if pose_attr in _POSE_LABEL_MAP:
         return FocusPrediction(_POSE_LABEL_MAP[pose_attr], 0.72,
-                               [f"Florence pose attribute: {pose_attr}."])
+                               [f"Caption pose attribute: {pose_attr}."])
     for label, keys in _POSE_CAPTION_RULES:
         if any(k in low for k in keys):
             return FocusPrediction(label, 0.62,
@@ -648,20 +648,20 @@ def _visual_summary(primary, detail, pose, q: dict) -> str:
 
 
 # ============================ public API ====================================
-def classify_visual_focus(image_path, florence_result=None, quality_signals=None,
+def classify_visual_focus(image_path, caption_result=None, quality_signals=None,
                           dataset_metadata=None,
                           config: VisualFocusClassifierConfig | None = None
                           ) -> VisualFocusClassificationResult:
     """Classify one image from its metadata (no image/model loading)."""
     cfg = config or VisualFocusClassifierConfig()
-    fl = _extract_florence(florence_result) if cfg.use_florence_attributes \
-        or cfg.use_florence_caption else {}
+    fl = _extract_caption_record(caption_result) if cfg.use_caption_attributes \
+        or cfg.use_caption_text else {}
     q = _extract_quality(quality_signals) if cfg.use_quality_signals else {}
     dm = dataset_metadata or {}
-    caption = fl.get("caption", "") if cfg.use_florence_caption else ""
+    caption = fl.get("caption", "") if cfg.use_caption_text else ""
     warnings = []
     if not fl:
-        warnings.append("no Florence output supplied")
+        warnings.append("no caption record supplied")
     if not q:
         warnings.append("no quality signals supplied")
 
@@ -687,7 +687,7 @@ def classify_visual_focus(image_path, florence_result=None, quality_signals=None
         quality_summary={k: q[k] for k in (
             "overall_quality_score", "integrity", "sharpness", "lighting_quality",
             "region_clarity", "region_balance_score") if k in q},
-        florence_summary={
+        caption_summary={
             "caption_present": bool(caption),
             "caption_natural_source": fl.get("source", ""),
             "primary_focus": fl.get("primary_focus"),
@@ -701,17 +701,17 @@ def classify_visual_focus(image_path, florence_result=None, quality_signals=None
 
 def classify_visual_focus_record(record, config=None
                                  ) -> VisualFocusClassificationResult:
-    """Classify from a single merged record (explorer row / florence jsonl line)."""
+    """Classify from a single merged record (explorer row / captions jsonl line)."""
     rec = record or {}
     image_path = (rec.get("image_path") or rec.get("path")
                   or rec.get("filename") or "")
-    florence = rec.get("florence") or rec
+    captions = rec.get("captions") or rec.get("caption_record") or rec
     quality = rec.get("quality_signals") or rec.get("quality") or rec
     dataset = {"recipe": rec.get("recipe"),
                "version": (rec.get("version_membership") or [None])[0]
                if rec.get("version_membership") else rec.get("version"),
                "stage": rec.get("stage")}
-    return classify_visual_focus(image_path, florence_result=florence,
+    return classify_visual_focus(image_path, caption_result=captions,
                                  quality_signals=quality, dataset_metadata=dataset,
                                  config=config)
 

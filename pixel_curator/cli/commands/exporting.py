@@ -20,7 +20,7 @@ def cmd_export(ctx: Context):
         print(f"No manifest at {prj.output_path / DB_NAME}")
         return
     conn = manifest.connect(prj.output_path)
-    from ..export.general import export_manifest, export_selection
+    from ...export.general import export_manifest, export_selection
     if ecmd == "manifest":
         rep = export_manifest(conn, Path(args.out), args.format)
     else:
@@ -39,7 +39,7 @@ def cmd_package(ctx: Context):
     if getattr(args, "package_cmd", None) != "kohya":
         print("usage: pixel-curator package kohya --dataset ... --output ...")
         return
-    from ..export.kohya_packager import (
+    from ...export.kohya_packager import (
         CaptionTemplateConfig,
         KohyaPackageConfig,
         package_kohya_dataset,
@@ -60,8 +60,8 @@ def cmd_package(ctx: Context):
                                    Path(args.output).expanduser(), pcfg)
     record: dict = {}
     if args.apply and args.register_version:
-        from ..dataset_versioning import KIND_KOHYA_PACKAGE, register_folder_export
-        from ..export.kohya_packager import registry_files
+        from ...dataset_versioning import KIND_KOHYA_PACKAGE, register_folder_export
+        from ...export.kohya_packager import registry_files
         record = register_folder_export(
             prj.output_path, kind=KIND_KOHYA_PACKAGE,
             name=args.concept_name,
@@ -80,7 +80,7 @@ def cmd_package(ctx: Context):
             print(f"  ! {w}")
     if args.apply and args.training_config:
         # Phase 10: ready-to-train config beside the package
-        from ..train.export_config import generate_for_export
+        from ...train.export_config import generate_for_export
         conn = manifest.connect(prj.output_path)
         try:
             _, tc_msgs = generate_for_export(
@@ -114,7 +114,7 @@ def cmd_package(ctx: Context):
 def cmd_dataset_card(ctx: Context):
     """Handler for the `dataset-card` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.dataset_cards import (
+    from ...curate.dataset_cards import (
         DatasetCardConfig,
         DatasetValidationConfig,
         generate_dataset_card,
@@ -151,7 +151,7 @@ def cmd_dataset_card(ctx: Context):
 def cmd_export_dreambooth(ctx: Context):
     """Handler for the `export-dreambooth` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..train.dreambooth_export import (
+    from ...train.dreambooth_export import (
         DreamBoothExportConfig,
         plan_dreambooth_export,
         render_plan,
@@ -185,8 +185,8 @@ def cmd_previews(ctx: Context):
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     from pathlib import Path as _P
 
-    from ..lora_explorer import lora_dirs
-    from ..qa_render import render_lora_previews
+    from ...lora_explorer import lora_dirs
+    from ...qa_render import render_lora_previews
     lp = _P(args.lora).expanduser()
     if not lp.exists():
         for d in lora_dirs(prj):
@@ -201,7 +201,7 @@ def cmd_previews(ctx: Context):
 def cmd_multi_recipe_packages(ctx: Context):
     """Handler for the `multi-recipe-packages` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..services import multi_recipe_packager as mp
+    from ...services import multi_recipe_packager as mp
     recs = []
     if args.input and Path(args.input).expanduser().exists():
         for line in Path(args.input).expanduser().read_text(
@@ -226,7 +226,7 @@ def cmd_multi_recipe_packages(ctx: Context):
                         cand.read_text(encoding="utf-8").splitlines() if l.strip()]
                 break
     if not recs and (prj.output_path / DB_NAME).exists():
-        from ..services import dataset_explorer as _dx
+        from ...services import dataset_explorer as _dx
         if getattr(args, "process_all", False):
             erecs = _dx.load_all_image_records(
                 prj.output_path, _dx.ExplorerFilter(limit=_dx.MAX_PAGE_SIZE),

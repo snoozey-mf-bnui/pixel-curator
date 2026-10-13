@@ -196,9 +196,8 @@ class CaptionConfig:
     batch_log_every: int = 50
     repo_id: str = "SmilingWolf/wd-swinv2-tagger-v3"
     # Tagging backend (Phase 1): wd14 (ONNX, existing behavior) |
-    # mps (torch+timm, WD14-v3 weights on the Apple Silicon GPU) |
-    # florence (Florence-2 prose -> pseudo-tags). Unavailable backends
-    # fall back to wd14 with a logged reason.
+    # mps (torch+timm, WD14-v3 weights on the Apple Silicon GPU).
+    # Unavailable backends fall back to wd14 with a logged reason.
     tagger: str = "wd14"
 
 
@@ -255,7 +254,7 @@ class Project:
     # keys: device=auto|cuda|mps|cpu, precision=auto|float16|bfloat16|float32,
     #       allow_tf32=true, cuda_empty_cache=true, mps_fallback=true
     runtime: dict = field(default_factory=dict)
-    # Default captioning backend (Phase 1): wd14 | mps | florence.
+    # Default captioning backend (Phase 1): wd14 | mps.
     # Overridden per-run by `caption --tagger`. Absent -> wd14 (unchanged).
     default_tagger: str = "wd14"
     # [dreambooth_selector] section (Phase 6) - profile, thresholds, signal

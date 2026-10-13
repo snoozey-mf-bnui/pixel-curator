@@ -212,35 +212,6 @@ def write_routing_status(output_base: str | None = None) -> dict:
     return written
 
 
-def florence_runtime_status(output_base: str | None = None) -> dict:
-    from . import florence_captioning as flc
-    return flc.detect_florence_runtime()
-
-
-def florence_caption_status(output_base: str | None = None) -> dict:
-    from . import florence_captioning as flc
-    base = Path(output_base).expanduser() if output_base else REPO_ROOT
-    for cand in (base / flc.RESULTS_NAME, base / "florence" / flc.RESULTS_NAME):
-        if cand.exists():
-            return flc.summarize_florence_results(cand)
-    return {"total": 0, "note": "no florence_captions.jsonl found"}
-
-
-def write_florence_status(output_base: str | None = None) -> dict:
-    """Legacy-UI parity: write florence_status.json + florence_caption_summary."""
-    d = status_dir(output_base)
-    written = {}
-    try:
-        d.mkdir(parents=True, exist_ok=True)
-        for name, fn in (("florence_status.json", florence_runtime_status),
-                         ("florence_caption_summary.json", florence_caption_status)):
-            (d / name).write_text(json.dumps(_safe(fn, output_base), indent=2,
-                                             default=str), encoding="utf-8")
-            written[name] = str(d / name)
-    except Exception:
-        logger.debug("suppressed exception", exc_info=True)
-        pass
-    return written
 
 
 def write_explorer_status(output_base: str | None = None) -> dict:
@@ -317,8 +288,6 @@ def route_payload(key: str, output_base: str | None = None) -> dict | None:
         "explorer_stage": lambda: explorer_stage_sample(output_base),
         "explorer_compare": lambda: explorer_compare_status(output_base),
         "visual_focus": lambda: visual_focus_status(output_base),
-        "florence_runtime": lambda: florence_runtime_status(output_base),
-        "florence_caption": lambda: florence_caption_status(output_base),
         "routing": lambda: routing_status(output_base),
         "specialized_recipes": lambda: specialized_recipe_status(output_base),
         "multi_recipe_packages": lambda: multi_recipe_package_status(output_base),
@@ -333,8 +302,7 @@ __all__ = ["status_dir", "write_all", "route_payload", "device_status",
            "logs_status", "write_explorer_status", "explorer_summary_status",
            "explorer_stage_sample", "explorer_compare_status",
            "visual_focus_status", "write_visual_focus_status",
-           "florence_runtime_status", "florence_caption_status",
-           "write_florence_status", "routing_status", "write_routing_status",
+           "routing_status", "write_routing_status",
            "specialized_recipe_status", "write_specialized_recipe_status",
            "multi_recipe_package_status", "face_consistency_status",
            "write_face_consistency_status"]

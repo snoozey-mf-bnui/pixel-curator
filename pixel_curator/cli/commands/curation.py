@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 def cmd_anchors_rebuild(ctx: Context):
     """Handler for the `anchors-rebuild` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.anchor_quality import AnchorQualityConfig, check_anchor_report, rebuild_anchor_set
+    from ...curate.anchor_quality import (
+        AnchorQualityConfig,
+        check_anchor_report,
+        rebuild_anchor_set,
+    )
     acfg = AnchorQualityConfig(
         dry_run=not args.apply, min_face_score=args.min_face_score,
         min_subject_integrity=args.min_subject_integrity,
@@ -35,7 +39,7 @@ def cmd_anchors_rebuild(ctx: Context):
 def cmd_diverse_select(ctx: Context):
     """Handler for the `diverse-select` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..diverse import diverse_select, fetch_candidates, render_plan
+    from ...diverse import diverse_select, fetch_candidates, render_plan
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -57,7 +61,7 @@ def cmd_diverse_select(ctx: Context):
 def cmd_quality(ctx: Context):
     """Handler for the `quality` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.quality_signals import analyze_quality_pass, render_quality
+    from ...curate.quality_signals import analyze_quality_pass, render_quality
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -65,11 +69,11 @@ def cmd_quality(ctx: Context):
     conn = manifest.connect(base)
     face_detector = None
     if args.with_face:
-        from ..curate.quality_signals import make_face_detector
+        from ...curate.quality_signals import make_face_detector
         face_detector, reason = make_face_detector(prj)
         if face_detector is None:
             print(f"--with-face unavailable: {reason}\nRunning bbox-only pass.")
-    from ..curate.advanced_quality import AdvancedQualityConfig
+    from ...curate.advanced_quality import AdvancedQualityConfig
     advanced = AdvancedQualityConfig.from_flags(
         advanced=args.with_advanced_quality,
         advanced_aesthetic=args.with_advanced_aesthetic,
@@ -111,7 +115,7 @@ def cmd_quality(ctx: Context):
 def cmd_categorize(ctx: Context):
     """Handler for the `categorize` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.categorize import categorize_pass, export_categories, render_categorize
+    from ...curate.categorize import categorize_pass, export_categories, render_categorize
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -148,7 +152,7 @@ def cmd_categorize(ctx: Context):
 def cmd_outfit(ctx: Context):
     """Handler for the `outfit` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.outfit import render_outfit, run_outfit_pass
+    from ...curate.outfit import render_outfit, run_outfit_pass
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -162,7 +166,7 @@ def cmd_outfit(ctx: Context):
 def cmd_framing_report(ctx: Context):
     """Handler for the `framing-report` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.framing import framing_distribution, render_framing
+    from ...curate.framing import framing_distribution, render_framing
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -219,7 +223,7 @@ def cmd_curate(ctx: Context):
         stream(smart_curate_generator(scfg))
     # Phase 5: cheap DB-only intelligence digest after any curate pass
     try:
-        from ..intelligence import analyze_dataset, intelligence_digest
+        from ...intelligence import analyze_dataset, intelligence_digest
         conn = manifest.connect(base, readonly=True)
         print("\n" + intelligence_digest(
             analyze_dataset(conn, output_base=base)))
@@ -290,7 +294,7 @@ def cmd_insights(ctx: Context):
                     print(f"Undo with: pixel-curator insights lint "
                           f"--undo {r['journal']}")
     elif args.insights_cmd == "intelligence":
-        from ..intelligence import analyze_dataset, render_intelligence
+        from ...intelligence import analyze_dataset, render_intelligence
         report = analyze_dataset(conn, output_base=prj.output_path,
                                  sample=getattr(args, "sample", 0))
         if args.json:
@@ -317,7 +321,7 @@ def cmd_insights(ctx: Context):
 def cmd_duplicates(ctx: Context):
     """Handler for the `duplicates` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.duplicates import DuplicateScanConfig, scan_duplicates, scan_generator
+    from ...curate.duplicates import DuplicateScanConfig, scan_duplicates, scan_generator
     conn = manifest.connect(out_base(args.output))
     dcfg = DuplicateScanConfig(
         dataset_version=args.dataset, method=args.method,
@@ -333,7 +337,7 @@ def cmd_duplicates(ctx: Context):
 def cmd_rescore(ctx: Context):
     """Handler for the `rescore` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..rescore import rescore_identity_generator
+    from ...rescore import rescore_identity_generator
     meta_dir = args.metadata_dir or prj.metadata_dir or None
     for update in rescore_identity_generator(
             prj, out_base(args.output),
@@ -347,7 +351,7 @@ def cmd_rescore(ctx: Context):
 def cmd_classify(ctx: Context):
     """Handler for the `classify` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..services import visual_focus_classifier as vc
+    from ...services import visual_focus_classifier as vc
     ccmd = getattr(args, "classify_cmd", None)
     if ccmd is None:
         print("usage: pixel-curator classify "
@@ -366,16 +370,20 @@ def cmd_classify(ctx: Context):
                             logger.debug("suppressed exception", exc_info=True)
                             pass
         elif args.dataset:
-            from ..services import florence_captioning as flc
-            fp = Path(args.dataset).expanduser() / flc.RESULTS_NAME
+            fp = Path(args.dataset).expanduser() / "captions.jsonl"
             if fp.exists():
-                recs = flc.load_florence_results(fp)
+                for line in fp.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        try:
+                            recs.append(json.loads(line))
+                        except Exception:
+                            logger.debug("suppressed exception", exc_info=True)
+                            pass
             else:
-                print(f"no {flc.RESULTS_NAME} under {args.dataset} - run "
-                      "'florence batch' first")
+                print(f"no captions.jsonl under {args.dataset}")
         if not recs:
             print("no input records found (use --input <jsonl> or --dataset "
-                  "<dir with florence_captions.jsonl>)")
+                  "<dir with captions.jsonl>)")
             return
         if args.limit:
             recs = recs[:args.limit]
@@ -397,15 +405,15 @@ def cmd_classify(ctx: Context):
               else vc.render_routing_card(res["summary"])
               + f"\nresults: {res['output_jsonl']}")
     elif ccmd == "visual-focus-image":
-        florence = quality = None
-        if args.florence_json and Path(args.florence_json).expanduser().exists():
-            florence = json.loads(Path(args.florence_json).expanduser()
+        captions = quality = None
+        if args.captions_json and Path(args.captions_json).expanduser().exists():
+            captions = json.loads(Path(args.captions_json).expanduser()
                                   .read_text(encoding="utf-8"))
         if args.quality_json and Path(args.quality_json).expanduser().exists():
             quality = json.loads(Path(args.quality_json).expanduser()
                                  .read_text(encoding="utf-8"))
         r = vc.classify_visual_focus(
-            str(Path(args.image).expanduser()), florence_result=florence,
+            str(Path(args.image).expanduser()), caption_result=captions,
             quality_signals=quality)
         if args.json:
             print(json.dumps(r.to_dict(), indent=2))
@@ -424,8 +432,8 @@ def cmd_classify(ctx: Context):
 def cmd_visual_focus(ctx: Context):
     """Handler for the `visual-focus` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate import visual_focus_classifier as vfc
-    from ..services import visual_focus_service as vfs
+    from ...curate import visual_focus_classifier as vfc
+    from ...services import visual_focus_service as vfs
     vcmd = getattr(args, "vf_cmd", None)
     cfg = vfc.VisualFocusConfig(
         use_vlm_refinement=getattr(args, "use_vlm_refinement", False))
@@ -468,8 +476,8 @@ def cmd_visual_focus(ctx: Context):
 def cmd_explorer(ctx: Context):
     """Handler for the `explorer` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..services import dataset_explorer as dx
-    from ..services import pipeline_lineage as pl
+    from ...services import dataset_explorer as dx
+    from ...services import pipeline_lineage as pl
     xbase = Path(args.output_base).expanduser() if getattr(
         args, "output_base", None) else prj.output_path
     xcmd = getattr(args, "explorer_cmd", None)
@@ -480,7 +488,7 @@ def cmd_explorer(ctx: Context):
     if xcmd == "summary":
         summ = dx.get_stage_summary(xbase)
         if getattr(args, "write_status", False):
-            from ..services import status_writer as sw
+            from ...services import status_writer as sw
             sw.write_explorer_status(str(xbase))
         print(json.dumps(summ, indent=2) if args.json
               else dx.render_summary_markdown(summ))
@@ -555,7 +563,7 @@ def cmd_explorer(ctx: Context):
 def cmd_datasets(ctx: Context):
     """Handler for the `datasets` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..builder import list_datasets
+    from ...builder import list_datasets
     conn = manifest.connect(prj.output_path)
     rows = list_datasets(conn)
     if not rows:
@@ -573,7 +581,7 @@ def cmd_datasets(ctx: Context):
 def cmd_viz(ctx: Context):
     """Handler for the `viz` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..viz import build_viz_payload, render_viz_summary
+    from ...viz import build_viz_payload, render_viz_summary
     conn = manifest.connect(out_base(args.output))
     payload = build_viz_payload(
         conn, out_base(args.output), dataset=args.dataset,

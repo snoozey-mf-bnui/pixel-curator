@@ -8,7 +8,7 @@ from ..common import *  # noqa: F401,F403
 def cmd_orient(ctx: Context):
     """Handler for the `orient` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..orient import (
+    from ...orient import (
         IMG_EXTS,
         OrientConfig,
         make_insightface_detector,
@@ -55,7 +55,7 @@ def cmd_orient(ctx: Context):
 def cmd_keyframes(ctx: Context):
     """Handler for the `keyframes` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..curate.keyframes import prune_video_keyframes, render_keyframes
+    from ...curate.keyframes import prune_video_keyframes, render_keyframes
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -103,7 +103,7 @@ def cmd_smart_extract(ctx: Context):
     # NSFW smart extraction: same engine as `extract`, but the config is
     # built from the [extraction] section of the project TOML (which -p
     # points at — typically pixel-curator_nsfw_v2.toml).
-    from ..smart_extract import run as run_smart_extract
+    from ...smart_extract import run as run_smart_extract
     rc = run_smart_extract(
         args.project,
         dry_run=args.dry_run,
@@ -129,7 +129,7 @@ def cmd_photos(ctx: Context):
 def cmd_prefilter(ctx: Context):
     """Handler for the `prefilter` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..prefilter import prefilter_generator, prefilter_summary, restore_prefiltered
+    from ...prefilter import prefilter_generator, prefilter_summary, restore_prefiltered
     base = out_base(args.output)
     if args.restore:
         conn = manifest.connect(base)

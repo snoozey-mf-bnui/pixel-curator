@@ -23,21 +23,12 @@ Backends:
             with a logged reason when missing. Also runs on CUDA/CPU, so
             the same flag works on Colab.
 
-  florence  Florence-2 natural-language captions (reuses
-            caption/vlm.py's lazy MPS-aware loader). Prose is converted to
-            comma phrases treated as (phrase, 1.0) pseudo-tags so the whole
-            rules pipeline still applies. Optional dependency; falls back
-            to wd14 when transformers/torch are absent. Best for
-            natural-language caption styles; WD14 tags remain the native
-            dialect for Pony training.
-
 Selection precedence: --tagger flag > project.toml default_tagger > "wd14".
 Resolution is lazy: nothing heavy loads until the first image is tagged.
 """
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -47,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 TaggerFn = Callable[[Path], list | None]
 
-VALID_TAGGERS = ("wd14", "mps", "florence")
+VALID_TAGGERS = ("wd14", "mps")
 
 # ViT partitions cleanly on MPS/CoreML where swinv2 does not; use it as the
 # mps-backend default unless the user explicitly picked another repo.
@@ -64,15 +55,6 @@ def mps_backend_available() -> tuple[bool, str]:
         import torch  # noqa: F401
     except Exception as exc:
         return False, f"torch/timm not installed ({exc})"
-    return True, "ok"
-
-
-def florence_backend_available() -> tuple[bool, str]:
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-    except Exception as exc:
-        return False, f"torch/transformers not installed ({exc})"
     return True, "ok"
 
 
@@ -148,55 +130,9 @@ def _make_mps(cfg: CaptionConfig) -> tuple[TaggerFn, str]:
 
 
 # ---------------------------------------------------------------------------
-# florence (natural-language -> pseudo-tags via the existing VLM loader)
-# ---------------------------------------------------------------------------
-_SPLIT_RE = re.compile(r"[,;.]| and | with | while ")
-
-
-def prose_to_pseudo_tags(text: str, max_phrases: int = 32) -> list:
-    """Split a Florence sentence into short comma-phrase pseudo-tags with
-    confidence 1.0, ready for the standard rules engine. Pure + testable."""
-    out, seen = [], set()
-    for chunk in _SPLIT_RE.split(str(text or "")):
-        phrase = " ".join(chunk.split()).strip(" -").lower()
-        # keep phrases in booru-ish length range; drop leading articles
-        phrase = re.sub(r"^(a|an|the|her|his|their|its) ", "", phrase)
-        if not phrase or len(phrase) > 48 or phrase in seen:
-            continue
-        seen.add(phrase)
-        out.append((phrase, 1.0))
-        if len(out) >= max_phrases:
-            break
-    return out
-
-
-def _make_florence(cfg: CaptionConfig) -> tuple[TaggerFn, str]:
-    from .vlm import make_florence_captioner
-
-    caption_fn, model_id = make_florence_captioner()
-    if caption_fn is None:
-        raise RuntimeError(model_id)           # model_id carries the reason
-
-    def tag(path: Path):
-        from PIL import Image, ImageOps
-        try:
-            with Image.open(path) as im:
-                img = ImageOps.exif_transpose(im).convert("RGB")
-        except Exception:
-            logger.debug("suppressed exception", exc_info=True)
-            return None
-        text = caption_fn(img)
-        if not text:
-            return None
-        return prose_to_pseudo_tags(text)
-
-    return tag, f"florence-2 [{model_id}]"
-
-
-# ---------------------------------------------------------------------------
 # Resolution with graceful fallback
 # ---------------------------------------------------------------------------
-_FACTORIES = {"wd14": _make_wd14, "mps": _make_mps, "florence": _make_florence}
+_FACTORIES = {"wd14": _make_wd14, "mps": _make_mps}
 
 
 def resolve_tagger(cfg: CaptionConfig) -> tuple[TaggerFn, str, str]:
@@ -211,9 +147,7 @@ def resolve_tagger(cfg: CaptionConfig) -> tuple[TaggerFn, str, str]:
         requested = "wd14"
 
     if requested != "wd14":
-        probe = (mps_backend_available if requested == "mps"
-                 else florence_backend_available)
-        ok, reason = probe()
+        ok, reason = mps_backend_available()
         if not ok:
             logging.info("Tagger '%s' unavailable (%s) - falling back to wd14",
                          requested, reason)

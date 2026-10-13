@@ -134,10 +134,16 @@ class PostProcessor:
         if self._upsampler is not None:
             return True
         if not self.realesrgan_model_path.is_file():
-            warnings.append("RealESRGAN model not found; skipping "
-                            "garment-detail upscale.")
-            log.warning(warnings[-1])
-            return False
+            try:  # first run: auto-download into models/realesrgan/
+                from .model_assets import ensure_model
+                self.realesrgan_model_path = ensure_model(
+                    "realesrgan-x4plus", progress=log.info)
+            except Exception as exc:
+                warnings.append("RealESRGAN model not found and "
+                                "auto-download failed; skipping "
+                                "garment-detail upscale.")
+                log.warning("%s (%s)", warnings[-1], exc)
+                return False
         try:
             from basicsr.archs.rrdbnet_arch import RRDBNet
             from realesrgan import RealESRGANer
@@ -164,10 +170,16 @@ class PostProcessor:
         if self._restorer is not None:
             return True
         if not self.gfpgan_model_path.is_file():
-            warnings.append("GFPGAN model not found; skipping conservative "
-                            "face refinement.")
-            log.warning(warnings[-1])
-            return False
+            try:  # first run: auto-download into models/gfpgan/
+                from .model_assets import ensure_model
+                self.gfpgan_model_path = ensure_model(
+                    "gfpgan-v1.4", progress=log.info)
+            except Exception as exc:
+                warnings.append("GFPGAN model not found and auto-download "
+                                "failed; skipping conservative face "
+                                "refinement.")
+                log.warning("%s (%s)", warnings[-1], exc)
+                return False
         try:
             from gfpgan import GFPGANer
         except Exception:

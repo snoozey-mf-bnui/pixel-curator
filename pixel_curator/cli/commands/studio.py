@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def cmd_workflow(ctx: Context):
     """Handler for the `workflow` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..workflow.orchestrator import (
+    from ...workflow.orchestrator import (
         WorkflowRunConfig,
         WorkflowStageConfig,
         build_workflow_plan,
@@ -87,9 +87,9 @@ def cmd_pipeline(ctx: Context):
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     # NOTE: aliased import - a bare `pipeline_generator` here would shadow
     # the module-level extract.pipeline_generator across ALL branches
-    from ..pipeline_dag import PipelineConfig, load_state, resume_generator
-    from ..pipeline_dag import pipeline_generator as dag_generator
-    from ..pipeline_recipes import (
+    from ...pipeline_dag import PipelineConfig, load_state, resume_generator
+    from ...pipeline_dag import pipeline_generator as dag_generator
+    from ...pipeline_recipes import (
         RecipePipelineConfig,
         load_recipe_state,
         recipe_pipeline_generator,
@@ -138,7 +138,7 @@ def cmd_pipeline(ctx: Context):
         else:
             print(render_plan(plan, base))
     elif args.what == "mega":
-        from ..pipeline_dag import MegaConfig, mega_generator
+        from ...pipeline_dag import MegaConfig, mega_generator
         stream(mega_generator(prj, MegaConfig(
             output_base=base, backend=args.backend)))
     elif args.what == "full":
@@ -162,7 +162,7 @@ def cmd_pipeline(ctx: Context):
 def cmd_ab(ctx: Context):
     """Handler for the `ab` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..qa_render import ab_compare
+    from ...qa_render import ab_compare
     def _split(s):
         n, _, w = s.rpartition(":")
         return (n or s, float(w) if w and n else 0.75)
@@ -174,7 +174,7 @@ def cmd_ab(ctx: Context):
 def cmd_golden(ctx: Context):
     """Handler for the `golden` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..qa_render import golden_regression
+    from ...qa_render import golden_regression
     for u in golden_regression(prj, args.lora, args.weight,
                                args.previous or None):
         print(u)
@@ -185,7 +185,7 @@ def cmd_study(ctx: Context):
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     from . import study as study_mod
     if args.study_cmd == "classify":
-        from ..study import StudyConfig, classify_generator
+        from ...study import StudyConfig, classify_generator
         for update in classify_generator(
                 prj, StudyConfig(output_base=prj.output_path,
                                  rescan=args.rescan)):
@@ -212,7 +212,7 @@ def cmd_study(ctx: Context):
             else:
                 from pathlib import Path as _P
 
-                from ..config import save_project
+                from ...config import save_project
                 save_project(prj, _P(args.project))
                 print(f"Saved to {args.project}")
         elif added:
@@ -241,7 +241,7 @@ def cmd_studio(ctx: Context):
     base = out_base(getattr(args, "output", None))
     as_json = getattr(args, "json", False)
     if scmd in ("status", "plan", "next"):
-        from ..studio.state import render_studio_state
+        from ...studio.state import render_studio_state
         state = st_mod.build_studio_state(prj, base)
         if as_json:
             print(json.dumps(state, indent=2))
@@ -257,7 +257,7 @@ def cmd_studio(ctx: Context):
                 print(f"     {a['reason']}")
                 print(f"     $ {a['command']}")
     elif scmd == "readiness":
-        from ..studio.readiness import batch_readiness, dataset_readiness, run_readiness
+        from ...studio.readiness import batch_readiness, dataset_readiness, run_readiness
         try:
             if args.run:
                 conn = manifest.connect(prj.output_path, readonly=True)
@@ -285,7 +285,7 @@ def cmd_studio(ctx: Context):
             print(f"  reason codes: "
                   f"{', '.join(rec.get('reason_codes', []))}")
     elif scmd == "assets":
-        from ..studio.registry import render_registry
+        from ...studio.registry import render_registry
         conn = None
         try:
             conn = manifest.connect(prj.output_path, readonly=True)
@@ -445,7 +445,7 @@ def cmd_learn(ctx: Context):
 def cmd_recommend_stack(ctx: Context):
     """Handler for the `recommend-stack` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic.stack_recommender import (
+    from ...artistic.stack_recommender import (
         recommend_best_epoch_and_stack,
         recommend_best_stack,
         recommend_figure_study_stack,
@@ -490,7 +490,7 @@ def cmd_recommend_stack(ctx: Context):
     else:
         print(rendered)
     if args.send_to_playground:
-        from ..pipeline_dag import write_playground_preset
+        from ...pipeline_dag import write_playground_preset
         loras = [(x["name"], x["weight"])
                  for x in rec["recommended_stack"]]
         target = write_playground_preset(prj, preset_label, loras)
@@ -500,7 +500,7 @@ def cmd_recommend_stack(ctx: Context):
 def cmd_analyze(ctx: Context):
     """Handler for the `analyze` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..wizard import analyze, detect_type
+    from ...wizard import analyze, detect_type
     conn = manifest.connect(prj.output_path)
     a = analyze(conn)
     print(json.dumps(a, indent=2))
@@ -512,7 +512,7 @@ def cmd_analyze(ctx: Context):
 def cmd_wizard(ctx: Context):
     """Handler for the `wizard` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..wizard import WizardConfig, wizard_generator
+    from ...wizard import WizardConfig, wizard_generator
     cfg = WizardConfig(
         output_base=out_base(args.output), lora_type=args.lora_type,
         trigger=args.trigger, class_word=args.class_word, name=args.name,
@@ -526,7 +526,7 @@ def cmd_testgen(ctx: Context):
     """Handler for the `testgen` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     if args.backend == "forge":
-        from ..eval.forge_dispatch import dispatch_forge_generate
+        from ...eval.forge_dispatch import dispatch_forge_generate
         payload = {
             "url": args.forge_url, "prompt": args.prompt,
             "neg": args.negative,
@@ -565,11 +565,11 @@ def cmd_testgen(ctx: Context):
         for w in result.get("lora_warnings", []):
             print(f"warning: {w}")
         return
-    from ..eval.matrix import parse_lora_specs
+    from ...eval.matrix import parse_lora_specs
     loras = []
     for spec in args.lora:
         loras.extend(parse_lora_specs(spec))
-    from ..eval.pipeline import diffusers_available, get_pipeline
+    from ...eval.pipeline import diffusers_available, get_pipeline
     ok, reason = diffusers_available()
     if not ok:
         print(reason)
@@ -591,7 +591,7 @@ def cmd_testgen(ctx: Context):
 def cmd_generate_artistic(ctx: Context):
     """Handler for the `generate-artistic` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic import compose_artistic_prompt, get_recipe, list_recipes
+    from ...artistic import compose_artistic_prompt, get_recipe, list_recipes
     if args.list_recipes or not args.recipe:
         print("Artistic Figure Study recipes:")
         for r in list_recipes():
@@ -606,7 +606,7 @@ def cmd_generate_artistic(ctx: Context):
     except KeyError as exc:
         print(f"FATAL: {exc}")
         return
-    from ..artistic.workflows import (
+    from ...artistic.workflows import (
         build_artistic_txt2img_payload,
         build_selective_region_payload,
         resolve_identity_lora,
@@ -615,7 +615,7 @@ def cmd_generate_artistic(ctx: Context):
     trig = f"{prj.trigger_token} {prj.class_word}".strip()
     if args.batch > 1 and not args.image:
         # controlled-variation batch (Phase 4) - shared planner
-        from ..artistic import plan_figure_study_batch, write_batch_manifest
+        from ...artistic import plan_figure_study_batch, write_batch_manifest
         axes = [a.strip() for a in args.variation.split(",")
                 if a.strip()]
         try:
@@ -682,7 +682,7 @@ def cmd_generate_artistic(ctx: Context):
         print(json.dumps({"workflow": res.workflow, "payload": safe,
                           "reason_codes": res.reason_codes}, indent=2))
     if args.send_to_playground:
-        from ..pipeline_dag import write_playground_preset
+        from ...pipeline_dag import write_playground_preset
         loras = [(s["name"], s["weight"]) for s in composed.lora_stack
                  if s["weight"] > 0]
         target = write_playground_preset(
@@ -696,7 +696,7 @@ def cmd_generate_artistic(ctx: Context):
 def cmd_generate_figure_study(ctx: Context):
     """Handler for the `generate-figure-study` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic import (
+    from ...artistic import (
         compose_artistic_prompt,
         get_recipe,
         list_negative_chains,
@@ -727,7 +727,7 @@ def cmd_generate_figure_study(ctx: Context):
     except KeyError as exc:
         print(f"FATAL: {exc}")
         return
-    from ..artistic.workflows import build_figure_study_region_payload, resolve_identity_lora
+    from ...artistic.workflows import build_figure_study_region_payload, resolve_identity_lora
     id_name, id_warnings = resolve_identity_lora(prj)
     trig = f"{prj.trigger_token} {prj.class_word}".strip()
     intensity = "strict" if args.strict else "standard"
@@ -749,7 +749,7 @@ def cmd_generate_figure_study(ctx: Context):
                               or args.mask or args.reference_image)
     guidance_plan: dict = {}
     if guidance_requested or recipe.guidance_recommendations:
-        from ..artistic.guidance import plan_figure_study_guidance, render_guidance
+        from ...artistic.guidance import plan_figure_study_guidance, render_guidance
         try:
             guidance_plan = plan_figure_study_guidance(
                 prj, region=(args.region if (args.image or
@@ -770,9 +770,9 @@ def cmd_generate_figure_study(ctx: Context):
                       or args.max_variants
                       or (guidance_requested and not args.image))
     if production and not args.image:
-        from ..artistic import plan_production_batch, write_production_batch
-        from ..artistic.guidance import render_guidance
-        from ..artistic.review import select_best_figure_study_variant
+        from ...artistic import plan_production_batch, write_production_batch
+        from ...artistic.guidance import render_guidance
+        from ...artistic.review import select_best_figure_study_variant
         pass_spec = [p.strip() for p in args.passes.split(",")
                      if p.strip()]
         if args.refine:
@@ -871,7 +871,7 @@ def cmd_generate_figure_study(ctx: Context):
                              indent=2))
     else:
         if variation_strength is not None and not axes:
-            from ..artistic import axes_for_variation_strength
+            from ...artistic import axes_for_variation_strength
             axes = axes_for_variation_strength(variation_strength)
         try:
             plan = plan_figure_study_batch(
@@ -887,7 +887,7 @@ def cmd_generate_figure_study(ctx: Context):
             print(f"FATAL: {exc}")
             return
         if guidance_plan:
-            from ..artistic.guidance import render_guidance
+            from ...artistic.guidance import render_guidance
             print("  " + render_guidance(guidance_plan)
                   .replace("\n", "\n  "))
         print(f"FIGURE STUDY BATCH '{plan['batch_name']}' - "
@@ -907,7 +907,7 @@ def cmd_generate_figure_study(ctx: Context):
             target = write_batch_manifest(plan, out_base(args.output))
             print(f"  Batch manifest written -> {target}")
         if args.send_to_playground and plan["items"]:
-            from ..pipeline_dag import write_playground_preset
+            from ...pipeline_dag import write_playground_preset
             loras = [(s["name"], s["weight"])
                      for s in plan["items"][0]["lora_stack"]
                      if s["weight"] > 0]
@@ -919,7 +919,7 @@ def cmd_generate_figure_study(ctx: Context):
 def cmd_figure_review(ctx: Context):
     """Handler for the `figure-review` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic.review import (
+    from ...artistic.review import (
         export_review,
         find_batch_dir,
         list_batches,
@@ -991,7 +991,7 @@ def cmd_figure_review(ctx: Context):
 def cmd_package_figure_study(ctx: Context):
     """Handler for the `package-figure-study` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic.packaging import package_figure_study
+    from ...artistic.packaging import package_figure_study
     base = out_base(args.output)
     conn = None
     try:
@@ -1025,8 +1025,8 @@ def cmd_package_figure_study(ctx: Context):
 def cmd_render_figure_study(ctx: Context):
     """Handler for the `render-figure-study` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic.batch_render import render_batch
-    from ..artistic.review import find_batch_dir
+    from ...artistic.batch_render import render_batch
+    from ...artistic.review import find_batch_dir
     base = out_base(args.output)
     try:
         bd = find_batch_dir(base, args.batch)
@@ -1184,7 +1184,12 @@ def cmd_exp(ctx: Context):
 def cmd_lookbook(ctx: Context):
     """Handler for the `lookbook` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..artistic.lookbook import LookbookConfig, lookbook_generator, parse_list, parse_lora_specs
+    from ...artistic.lookbook import (
+        LookbookConfig,
+        lookbook_generator,
+        parse_list,
+        parse_lora_specs,
+    )
     cfg = LookbookConfig(
         output_base=out_base(args.output), identity_lora=args.identity,
         outfits=parse_list(args.outfits), poses=parse_list(args.poses) or ["standing"],
@@ -1200,7 +1205,7 @@ def cmd_lookbook(ctx: Context):
 def cmd_plan(ctx: Context):
     """Handler for the `plan` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..builder import plan_generator
+    from ...builder import plan_generator
     for update in plan_generator(prj, out_base(args.output),
                                  args.recipe or None):
         print(update)
@@ -1209,7 +1214,7 @@ def cmd_plan(ctx: Context):
 def cmd_build(ctx: Context):
     """Handler for the `build` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..builder import BuildConfig, build_generator
+    from ...builder import BuildConfig, build_generator
     cfg = BuildConfig(
         output_base=out_base(args.output), recipe=args.recipe,
         note=args.note, link_mode=args.link_mode,
@@ -1222,7 +1227,7 @@ def cmd_build(ctx: Context):
 def cmd_face_fix(ctx: Context):
     """Handler for the `face-fix` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ..services import face_consistency_studio as fcs
+    from ...services import face_consistency_studio as fcs
     cfg = fcs.FaceConsistencyConfig(
         output_dir=args.output, mode=args.mode,
         face_model_path=args.face_model,
