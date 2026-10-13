@@ -1,3 +1,6 @@
+# NOTE: pyproject.toml is the canonical declaration of DIRECT
+# dependencies; this file is the pinned reference environment.
+# tests/test_requirements_sync.py keeps the two in sync.
 absl-py==2.5.1
 addict==2.4.0
 albucore==0.0.24

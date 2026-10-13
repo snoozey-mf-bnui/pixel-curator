@@ -118,10 +118,6 @@ def estimate_horizontal_symmetry(keypoints: dict[str, Point]) -> float | None:
         left_v = (left_pt[0] - neck[0], left_pt[1] - neck[1])
         right_v = (right_pt[0] - neck[0], right_pt[1] - neck[1])
 
-        # Project onto midline vector to get "height" along the spine
-        left_proj = (left_v[0] * mid_dx + left_v[1] * mid_dy) / (mid_len ** 2)
-        right_proj = (right_v[0] * mid_dx + right_v[1] * mid_dy) / (mid_len ** 2)
-
         # Perpendicular distance to midline (horizontal offset)
         left_perp = abs(left_v[0] * mid_dy - left_v[1] * mid_dx) / mid_len
         right_perp = abs(right_v[0] * mid_dy - right_v[1] * mid_dx) / mid_len

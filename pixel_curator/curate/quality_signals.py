@@ -348,11 +348,32 @@ def make_face_detector(prj=None):
     return detect, None
 
 
+
+def _score_one_process(job):
+    """Process-pool worker: score one frame without face detection.
+
+    Runs in a fresh process; only uses picklable inputs and the default
+    EXIF-aware loader. Returns ``(fid, m, det_conf, face_area, bbox_px,
+    w, h)`` with ``m=None`` for unreadable frames."""
+    fid, path, bbox_raw, det_conf, face_area = job
+    rgb = _default_load(path)
+    if rgb is None or np.asarray(rgb).size == 0:
+        return (fid, None, det_conf, face_area, None, 0, 0)
+    rgb = np.asarray(rgb)
+    h, w = rgb.shape[:2]
+    bn = _parse_bbox(bbox_raw)
+    bbox_px = [bn[0] * w, bn[1] * h, bn[2] * w, bn[3] * h] if (
+        bn and len(bn) == 4) else None
+    m = analyze_frame(rgb, bbox_px=bbox_px, det_score=det_conf,
+                      face_area_frac=face_area)
+    return (fid, m, det_conf, face_area, bbox_px, w, h)
+
+
 def analyze_quality_pass(conn, *, load_image=None, face_detector=None,
                          advanced=None, statuses=("selected", "packaged"),
                          limit: int = 0, store: bool = True,
                          resume: bool = False, progress: bool = False,
-                         commit_every: int = 400) -> dict:
+                         commit_every: int = 400, workers: int = 1) -> dict:
     """Score every curated frame's subject-integrity / composition / artifacts.
 
     By default (no face_detector) it reuses the stored detection bbox - fast,
@@ -364,11 +385,17 @@ def analyze_quality_pass(conn, *, load_image=None, face_detector=None,
     resume=True skips frames already scored at the current signal version (so a
     Ctrl-C'd run picks up where it left off). progress=True prints a throttled
     live status line to stderr. Work is committed every ``commit_every`` frames
-    and on interrupt, so resume always has durable progress to build on."""
+    and on interrupt, so resume always has durable progress to build on.
+
+    workers>1 parallelizes scoring across processes (completion order is
+    then nondeterministic); it activates only in the plain CPU path -
+    face-detector, advanced-signal and custom-loader passes stay
+    sequential."""
     import sys
     import time
 
     from ..util import now_iso
+    custom_loader = load_image is not None
     load_image = load_image or _default_load
     qs = ",".join("?" for _ in statuses)
     rows = conn.execute(
@@ -433,77 +460,112 @@ def analyze_quality_pass(conn, *, load_image=None, face_detector=None,
     adv_warnings: list = []
     face_areas, details, buckets, integrities = [], [], [], []
     since_commit = 0
-    try:
-        for fid, path, bbox_raw, det_conf, face_area in rows:
-            summary["scanned"] += 1
-            rgb = load_image(path)
-            if rgb is None or np.asarray(rgb).size == 0:
-                summary["unreadable"] += 1
-                continue
-            rgb = np.asarray(rgb)
-            h, w = rgb.shape[:2]
-            eyes = pose = None
-            if face_detector is not None:
-                fd = face_detector(rgb)
-                if fd:
-                    bbox_px = fd["bbox_px"]
-                    det_conf = fd["det_score"]
-                    face_area = fd["face_area_frac"]
-                    eyes, pose = fd["eyes"], fd["pose"]
-                else:
-                    bbox_px = None
+
+    parallel = (workers > 1 and face_detector is None
+                and not custom_loader and not adv_on)
+    jobs = [(fid, path, bbox_raw, det_conf, face_area)
+            for fid, path, bbox_raw, det_conf, face_area in rows]
+
+    def _sequential(job):
+        fid, path, bbox_raw, det_conf, face_area = job
+        rgb = load_image(path)
+        if rgb is None or np.asarray(rgb).size == 0:
+            return (fid, None, det_conf, face_area, None, 0, 0, None)
+        rgb = np.asarray(rgb)
+        h, w = rgb.shape[:2]
+        eyes = pose = None
+        if face_detector is not None:
+            fd = face_detector(rgb)
+            if fd:
+                bbox_px = fd["bbox_px"]
+                det_conf = fd["det_score"]
+                face_area = fd["face_area_frac"]
+                eyes, pose = fd["eyes"], fd["pose"]
             else:
-                bn = _parse_bbox(bbox_raw)
-                bbox_px = [bn[0] * w, bn[1] * h, bn[2] * w, bn[3] * h] if (
-                    bn and len(bn) == 4) else None
-            m = analyze_frame(rgb, bbox_px=bbox_px, det_score=det_conf,
-                              face_area_frac=face_area, eyes=eyes, pose=pose)
-            if store:
-                conn.execute(
-                    "INSERT OR REPLACE INTO frame_quality(frame_id, face_sharpness, "
-                    "micro_detail, detail_retention, blockiness, centering, headroom, "
-                    "occlusion, frontalness, eyes_open, pose_bucket, integrity, "
-                    "metric_version, face_pass, calculated_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (fid, m["face_sharpness"], m["micro_detail"], m["detail_retention"],
-                     m["blockiness"], m["centering"], m["headroom"], m["occlusion"],
-                     m["frontalness"], m["eyes_open"], m["pose_bucket"],
-                     m["integrity"], METRIC_VERSION, face_pass, now))
-            # optional advanced quality signals (additive, fail-safe, opt-in)
-            if adv_on:
-                try:
-                    from .advanced_quality import ADVANCED_SIGNAL_VERSION, compute_advanced_signals
-                    img_bgr = rgb[:, :, ::-1] if rgb.ndim == 3 else rgb
-                    sig, warns = compute_advanced_signals(
-                        img_bgr, face_bbox=bbox_px, img_w=w, img_h=h,
-                        base_metrics=m, det_conf=det_conf, cfg=advanced)
-                    adv_warnings.extend(warns)
-                    if sig:
-                        summary["advanced_signals"] += 1
-                        if store:
-                            import json as _json
-                            conn.execute(
-                                "INSERT OR REPLACE INTO frame_advanced_quality("
-                                "frame_id, signals_json, signal_version, "
-                                "calculated_at) VALUES (?,?,?,?)",
-                                (fid, _json.dumps(sig), ADVANCED_SIGNAL_VERSION, now))
-                except Exception as exc:
-                    adv_warnings.append(f"advanced_quality_failed: {exc}")
-            summary["scored"] += 1
-            if face_area is not None:
-                face_areas.append(face_area)
-            if m["detail_retention"] is not None:
-                details.append(m["detail_retention"])
-            if m["pose_bucket"]:
-                buckets.append(m["pose_bucket"])
-            if m["integrity"] is not None:
-                integrities.append(m["integrity"])
-            # durable checkpoint so a Ctrl-C keeps everything done so far
-            since_commit += 1
-            if store and since_commit >= commit_every:
-                conn.commit()
-                since_commit = 0
-            _emit()
+                bbox_px = None
+        else:
+            bn = _parse_bbox(bbox_raw)
+            bbox_px = [bn[0] * w, bn[1] * h, bn[2] * w, bn[3] * h] if (
+                bn and len(bn) == 4) else None
+        m = analyze_frame(rgb, bbox_px=bbox_px, det_score=det_conf,
+                          face_area_frac=face_area, eyes=eyes, pose=pose)
+        return (fid, m, det_conf, face_area, bbox_px, w, h, rgb)
+
+    def _results(pool):
+        if pool is not None:
+            from concurrent.futures import as_completed
+            futs = [pool.submit(_score_one_process, job) for job in jobs]
+            for fut in as_completed(futs):
+                fid, m, det_conf, face_area, bbox_px, w, h = fut.result()
+                yield (fid, m, det_conf, face_area, bbox_px, w, h, None)
+        else:
+            for job in jobs:
+                yield _sequential(job)
+
+    try:
+        pool = None
+        if parallel:
+            from concurrent.futures import ProcessPoolExecutor
+            pool = ProcessPoolExecutor(max_workers=workers)
+        try:
+            for (fid, m, det_conf, face_area, bbox_px,
+                 w, h, rgb) in _results(pool):
+                summary["scanned"] += 1
+                if m is None:
+                    summary["unreadable"] += 1
+                    continue
+                if store:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO frame_quality(frame_id, face_sharpness, "
+                        "micro_detail, detail_retention, blockiness, centering, headroom, "
+                        "occlusion, frontalness, eyes_open, pose_bucket, integrity, "
+                        "metric_version, face_pass, calculated_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (fid, m["face_sharpness"], m["micro_detail"], m["detail_retention"],
+                         m["blockiness"], m["centering"], m["headroom"], m["occlusion"],
+                         m["frontalness"], m["eyes_open"], m["pose_bucket"],
+                         m["integrity"], METRIC_VERSION, face_pass, now))
+                # optional advanced quality signals (sequential path only)
+                if adv_on:
+                    try:
+                        from .advanced_quality import (
+                            ADVANCED_SIGNAL_VERSION,
+                            compute_advanced_signals,
+                        )
+                        img_bgr = rgb[:, :, ::-1] if rgb.ndim == 3 else rgb
+                        sig, warns = compute_advanced_signals(
+                            img_bgr, face_bbox=bbox_px, img_w=w, img_h=h,
+                            base_metrics=m, det_conf=det_conf, cfg=advanced)
+                        adv_warnings.extend(warns)
+                        if sig:
+                            summary["advanced_signals"] += 1
+                            if store:
+                                import json as _json
+                                conn.execute(
+                                    "INSERT OR REPLACE INTO frame_advanced_quality("
+                                    "frame_id, signals_json, signal_version, "
+                                    "calculated_at) VALUES (?,?,?,?)",
+                                    (fid, _json.dumps(sig), ADVANCED_SIGNAL_VERSION, now))
+                    except Exception as exc:
+                        adv_warnings.append(f"advanced_quality_failed: {exc}")
+                summary["scored"] += 1
+                if face_area is not None:
+                    face_areas.append(face_area)
+                if m["detail_retention"] is not None:
+                    details.append(m["detail_retention"])
+                if m["pose_bucket"]:
+                    buckets.append(m["pose_bucket"])
+                if m["integrity"] is not None:
+                    integrities.append(m["integrity"])
+                # durable checkpoint so a Ctrl-C keeps everything done so far
+                since_commit += 1
+                if store and since_commit >= commit_every:
+                    conn.commit()
+                    since_commit = 0
+                _emit()
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=False, cancel_futures=True)
     except KeyboardInterrupt:
         summary["interrupted"] = 1
         if store:

@@ -8,6 +8,7 @@ read-only manifest connections and degrades gracefully when metadata or
 optional backends are missing - safe to run during active training.
 """
 
+from .asset_registry import build_asset_registry
 from .handoff import export_studio_handoff
 from .learning import (
                         aggregate_preferences,
@@ -22,7 +23,6 @@ from .learning import (
                         stage_harvest,
 )
 from .readiness import batch_readiness, dataset_readiness, readiness_level, run_readiness
-from .registry import build_asset_registry
 from .state import build_studio_state, recommend_next_actions
 
 __all__ = [

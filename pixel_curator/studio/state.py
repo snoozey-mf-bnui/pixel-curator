@@ -160,7 +160,7 @@ def build_studio_state(prj, output_base: Path | None = None,
     # ---- figure-study batches ----
     batches: list[dict] = []
     try:
-        from ..artistic.review import list_batches
+        from ..artistic.batch_review import list_batches
         batches = list_batches(base)
     except Exception:
         logger.debug("suppressed exception", exc_info=True)

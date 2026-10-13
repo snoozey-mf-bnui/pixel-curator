@@ -35,7 +35,7 @@ Every stage is resumable, dry-run by default where mutations are possible, and t
 | Filter | `prefilter` | Fast multiprocessed pass to drop technically unusable frames |
 | Score | `curate` | Optical quality scoring, perceptual-hash dedup, per-frame status assignment |
 | Cluster | `cluster`, `viz` | CLIP embeddings cached in the manifest, k-means clustering, embedding maps |
-| Caption | `caption`, `florence` | WD14 tagger (auto-downloads) or Florence-2 natural-language captions |
+| Caption | `caption` | WD14 tagger (auto-downloads), ONNX or Apple-Silicon MPS backend |
 | Semantic filter | `filter` | Keep/drop frames matching a CLIP text query ("beach photos", "images with watermarks") |
 | Review | `review export` / `review import` | Static HTML report + spreadsheet keep/reject round-trip |
 | Export | `export manifest`, `export select`, `package` | Flat CSV/JSONL/Parquet manifest; top-N% / threshold / balanced selections; **Kohya LoRA and DreamBooth instance packages** |
@@ -90,7 +90,7 @@ Optional extras, installed only if you need them:
 ```bash
 pip install -e '.[caption]'   # WD14 tagging (onnxruntime, huggingface-hub)
 pip install -e '.[cluster]'   # CLIP embeddings / clustering / text filter (torch, open-clip)
-pip install -e '.[vlm]'       # Florence-2 captions (transformers)
+pip install -e '.[vlm]'       # transformers-based CLIP fallback
 pip install -e '.[parquet]'   # parquet manifest export
 pip install -e '.[cv]'        # OpenCV-based quality scorers
 pip install -e '.[face]'      # identity / face analysis (insightface)
@@ -190,14 +190,19 @@ This is also the workflow for trimming class / regularization images, which is o
 
 ## Models
 
-Core scoring needs no models. Optional capabilities download or locate their own:
+Core scoring needs no models. Everything else auto-downloads on first run
+(sha256-verified for direct downloads); inspect or prefetch with:
+
+```bash
+pixel-curator models            # status table (offline)
+pixel-curator models download   # fetch everything missing
+```
 
 | Feature | Model | Setup |
 |---|---|---|
 | WD14 captions | `SmilingWolf/wd-swinv2-tagger-v3` (~450 MB) | auto-downloads from HuggingFace on first run |
 | CLIP clustering / text filter | ViT-B-32 (open_clip, laion2b) | auto-downloads on first run |
 | Identity scoring | InsightFace `buffalo_l` (+ optional `inswapper_128.onnx`) | auto-downloads via `insightface` |
-| Florence-2 captions | `microsoft/Florence-2-base` or local fine-tunes | place fine-tunes in `pixel_curator/models/vlm/florence2/` |
 | Face restoration | `GFPGANv1.4.pth` | place in `pixel_curator/models/gfpgan/` |
 | Upscaling | `RealESRGAN_x4plus.pth` | place in `pixel_curator/models/realesrgan/` |
 
@@ -219,7 +224,7 @@ precision = "auto"     # auto | float32 | float16 | bfloat16
 allow_tf32 = true
 ```
 
-`device` drives torch workloads (CLIP, Florence-2); `provider` drives ONNX workloads (WD14 tagging, InsightFace likeness, orientation, quality signals). An unavailable choice degrades to CPU with a note — verify with:
+`device` drives torch workloads (CLIP); `provider` drives ONNX workloads (WD14 tagging, InsightFace likeness, orientation, quality signals). An unavailable choice degrades to CPU with a note — verify with:
 
 ```bash
 pixel-curator -p myproject.toml doctor    # shows device, dtype, providers

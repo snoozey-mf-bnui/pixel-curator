@@ -106,7 +106,6 @@ def estimate_color_harmony(image: np.ndarray) -> float | None:
     if len(image.shape) != 3: return 0.5 # Grayscale images are neutrally harmonious
 
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    hue = hsv[:, :, 0].flatten()
 
     # Calculate hue histogram
     hist = cv2.calcHist([hsv], [0], None, [180], [0, 180]).flatten()

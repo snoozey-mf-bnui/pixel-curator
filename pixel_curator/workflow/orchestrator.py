@@ -494,7 +494,7 @@ def _exec_training_plans(run, cfg, planned):
             continue
         pkg = packages / f"{t}_lora"
         recipe = build_training_recipe(ds, pkg if pkg.is_dir() else None)
-        paths = write_training_recipe(recipe, out_root / t)
+        write_training_recipe(recipe, out_root / t)
         outputs[t] = {"plan_dir": str(out_root / t),
                       "readiness": recipe.readiness.readiness_label,
                       "score": recipe.readiness.readiness_score}

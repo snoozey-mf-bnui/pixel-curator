@@ -86,7 +86,7 @@ def export_studio_handoff(prj, output_base: Path | None = None,
     recorded as warnings; the export never raises on absent files.
     """
     from .. import manifest as mf
-    from .registry import build_asset_registry
+    from .asset_registry import build_asset_registry
     from .state import build_studio_state
 
     base = Path(output_base or prj.output_path).expanduser()

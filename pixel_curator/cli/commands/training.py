@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_train(ctx: Context):
     """Handler for the `train` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     tcmd = getattr(args, "train_cmd", None)
     if tcmd == "plan":
         from ...train.recipe_builder import (
@@ -85,7 +85,7 @@ def cmd_likeness(ctx: Context):
 
 def cmd_leaderboard(ctx: Context):
     """Handler for the `leaderboard` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...eval.leaderboard import build_leaderboard, head_to_head, render_leaderboard
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -168,7 +168,7 @@ def cmd_mergeforge(ctx: Context):
 
 def cmd_concept(ctx: Context):
     """Handler for the `concept` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from . import lora_explorer as lx
     cards = lx.scan_loras(prj)
     if args.concept_cmd == "scan":
@@ -243,7 +243,7 @@ def cmd_concept(ctx: Context):
 
 def cmd_registry(ctx: Context):
     """Handler for the `registry` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...registry import best_likeness, build_registry
     conn = manifest.connect(prj.output_path)
     entries = build_registry(prj, conn)
@@ -258,7 +258,7 @@ def cmd_registry(ctx: Context):
 
 def cmd_card(ctx: Context):
     """Handler for the `card` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     conn = manifest.connect(prj.output_path)
     if args.run:
         from ...model_card import generate_model_card
@@ -383,7 +383,7 @@ def cmd_matrix(ctx: Context):
 
 def cmd_evals(ctx: Context):
     """Handler for the `evals` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...eval.matrix import eval_summary
     conn = manifest.connect(prj.output_path)
     rows = eval_summary(conn)
@@ -399,7 +399,6 @@ def cmd_evals(ctx: Context):
 
 def cmd_presets(ctx: Context):
     """Handler for the `presets` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     from ...train import PRESETS
     for name, p in PRESETS.items():
         print(f"  {name:<10} dim {p['network_dim']}/{p['network_alpha']:<3} "
@@ -409,7 +408,7 @@ def cmd_presets(ctx: Context):
 
 def cmd_suggest_preset(ctx: Context):
     """Handler for the `suggest-preset` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...train.preset_recommender import format_recommendation, suggest_preset
     conn = manifest.connect(out_base(args.output))
     try:
@@ -449,7 +448,7 @@ def cmd_suggest_preset(ctx: Context):
 
 def cmd_training_config(ctx: Context):
     """Handler for the `training-config` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...train.export_config import generate_training_bundle
 
     def _coerce(v: str):
@@ -530,7 +529,7 @@ def cmd_train_legacy(ctx: Context):
 
 def cmd_recipes(ctx: Context):
     """Handler for the `recipes` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     if not prj.recipes:
         print("No recipes defined. Add [recipes.NAME] sections to the project file\n"
               "or regenerate a template with: pixel-curator init")
@@ -578,7 +577,7 @@ def cmd_tune_stack(ctx: Context):
 
 def cmd_specialized_recipes(ctx: Context):
     """Handler for the `specialized-recipes` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...services import specialized_recipe_builder as rb
     from ...services import visual_focus_classifier as _vc
     recs = []

@@ -101,7 +101,7 @@ def _run_assets(conn) -> list[dict]:
 
 def _batch_assets(output_base: Path) -> list[dict]:
     try:
-        from ..artistic.review import list_batches
+        from ..artistic.batch_review import list_batches
         return list_batches(output_base)
     except Exception:
         return []

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_workflow(ctx: Context):
     """Handler for the `workflow` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...workflow.orchestrator import (
         WorkflowRunConfig,
         WorkflowStageConfig,
@@ -161,7 +161,7 @@ def cmd_pipeline(ctx: Context):
 
 def cmd_ab(ctx: Context):
     """Handler for the `ab` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...qa_render import ab_compare
     def _split(s):
         n, _, w = s.rpartition(":")
@@ -173,7 +173,7 @@ def cmd_ab(ctx: Context):
 
 def cmd_golden(ctx: Context):
     """Handler for the `golden` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...qa_render import golden_regression
     for u in golden_regression(prj, args.lora, args.weight,
                                args.previous or None):
@@ -182,7 +182,7 @@ def cmd_golden(ctx: Context):
 
 def cmd_study(ctx: Context):
     """Handler for the `study` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from . import study as study_mod
     if args.study_cmd == "classify":
         from ...study import StudyConfig, classify_generator
@@ -285,7 +285,7 @@ def cmd_studio(ctx: Context):
             print(f"  reason codes: "
                   f"{', '.join(rec.get('reason_codes', []))}")
     elif scmd == "assets":
-        from ...studio.registry import render_registry
+        from ...studio.asset_registry import render_registry
         conn = None
         try:
             conn = manifest.connect(prj.output_path, readonly=True)
@@ -499,7 +499,7 @@ def cmd_recommend_stack(ctx: Context):
 
 def cmd_analyze(ctx: Context):
     """Handler for the `analyze` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...wizard import analyze, detect_type
     conn = manifest.connect(prj.output_path)
     a = analyze(conn)
@@ -771,8 +771,8 @@ def cmd_generate_figure_study(ctx: Context):
                       or (guidance_requested and not args.image))
     if production and not args.image:
         from ...artistic import plan_production_batch, write_production_batch
+        from ...artistic.batch_review import select_best_figure_study_variant
         from ...artistic.guidance import render_guidance
-        from ...artistic.review import select_best_figure_study_variant
         pass_spec = [p.strip() for p in args.passes.split(",")
                      if p.strip()]
         if args.refine:
@@ -918,8 +918,8 @@ def cmd_generate_figure_study(ctx: Context):
 
 def cmd_figure_review(ctx: Context):
     """Handler for the `figure-review` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ...artistic.review import (
+    args, out_base = ctx.args, ctx.out_base
+    from ...artistic.batch_review import (
         export_review,
         find_batch_dir,
         list_batches,
@@ -1026,7 +1026,7 @@ def cmd_render_figure_study(ctx: Context):
     """Handler for the `render-figure-study` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
     from ...artistic.batch_render import render_batch
-    from ...artistic.review import find_batch_dir
+    from ...artistic.batch_review import find_batch_dir
     base = out_base(args.output)
     try:
         bd = find_batch_dir(base, args.batch)
@@ -1048,7 +1048,7 @@ def cmd_render_figure_study(ctx: Context):
 
 def cmd_exp(ctx: Context):
     """Handler for the `exp` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from . import experiments as xp
 
     def _kv(pairs):
@@ -1226,7 +1226,7 @@ def cmd_build(ctx: Context):
 
 def cmd_face_fix(ctx: Context):
     """Handler for the `face-fix` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...services import face_consistency_studio as fcs
     cfg = fcs.FaceConsistencyConfig(
         output_dir=args.output, mode=args.mode,

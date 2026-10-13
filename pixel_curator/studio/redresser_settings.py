@@ -17,11 +17,10 @@ log = logging.getLogger("redresser.settings")
 _SETTINGS_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _default_model_path(filename: str, subdir: str, legacy: str) -> str:
-    """Prefer the repo-local ``models/<subdir>/<filename>`` copy; fall back
-    to the legacy external-SSD path when the local file is absent."""
-    local = _SETTINGS_ROOT / "models" / subdir / filename
-    return str(local) if local.exists() else legacy
+def _default_model_path(filename: str, subdir: str) -> str:
+    """Repo-local ``models/<subdir>/<filename>``; auto-downloaded on first
+    use via :mod:`pixel_curator.model_assets` when absent."""
+    return str(_SETTINGS_ROOT / "models" / subdir / filename)
 
 
 DEFAULT_FORGE_URL = "http://127.0.0.1:7860"
@@ -29,11 +28,9 @@ DEFAULT_LORA_DIR = (
     "~/FORGE_REPO/stable-diffusion-webui-reForge/models/Lora")
 DEFAULT_IDENTITY_IMAGE = ""  # set your own identity anchor image path locally
 DEFAULT_REALESRGAN = _default_model_path(
-    "RealESRGAN_x4plus.pth", "realesrgan",
-    "/Volumes/CURATOR_SSD/TAKEOUTS/RealESRGAN_x4plus.pth")
+    "RealESRGAN_x4plus.pth", "realesrgan")
 DEFAULT_GFPGAN = _default_model_path(
-    "GFPGANv1.4.pth", "gfpgan",
-    "/Volumes/CURATOR_SSD/TAKEOUTS/GFPGANv1.4.pth")
+    "GFPGANv1.4.pth", "gfpgan")
 DEFAULT_REFORGE_REPO = "~/FORGE_REPO/stable-diffusion-webui-reForge"
 DEFAULT_CONFIG_NAME = ".redresser_settings.json"
 

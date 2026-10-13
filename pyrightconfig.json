@@ -1,0 +1,16 @@
+{
+  "include": [
+    "pixel_curator"
+  ],
+  "exclude": [
+    "pixel_curator/models",
+    "pixel_curator/tests"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportUndefinedVariable": "warning",
+  "reportUnusedVariable": "information",
+  "venvPath": ".",
+  "venv": ".venv"
+}

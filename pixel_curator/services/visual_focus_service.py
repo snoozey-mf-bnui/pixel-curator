@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..curate import visual_focus_classifier as vfc
+from ..curate import visual_focus_cv as vfc
 
 logger = logging.getLogger(__name__)
 

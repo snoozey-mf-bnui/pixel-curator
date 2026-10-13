@@ -14,8 +14,6 @@ def _top_level_commands() -> set[str]:
     """Capture the ArgumentParser inside parse_args and list subcommands."""
     import argparse
     captured = {}
-    real = argparse.ArgumentParser.parse_args
-
     def spy(self, args=None, namespace=None):
         captured["parser"] = self
         raise SystemExit(0)

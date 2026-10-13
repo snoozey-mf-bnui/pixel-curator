@@ -99,7 +99,6 @@ def get_image_lineage(output_base, image_path_or_id: str) -> ImageLineage:
             lin.warnings.append("image not found in manifest")
             return lin
         # pull the single record through the explorer normalizer
-        flt = dx.ExplorerFilter(limit=1)
         cluster_expr = "f.cluster_id" if dx._has_column(conn, "frames", "cluster_id") else "NULL"
         sql = dx._BASE_SELECT.format(cluster=cluster_expr) + " WHERE f.frame_id = ?"
         row = conn.execute(sql, (fid,)).fetchone()

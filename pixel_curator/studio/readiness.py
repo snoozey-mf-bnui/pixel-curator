@@ -309,7 +309,7 @@ def run_readiness(conn, prj, run_name: str) -> dict:
 def batch_readiness(output_base: Path, batch_id: str) -> dict:
     """Score whether a figure-study batch is ready for review/export.
     File-backed; never raises on missing assets."""
-    from ..artistic.review import (
+    from ..artistic.batch_review import (
         find_batch_dir,
         load_batch_manifest,
         review_summary,

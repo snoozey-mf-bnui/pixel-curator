@@ -7,7 +7,7 @@ from ..common import *  # noqa: F401,F403
 
 def cmd_init(ctx: Context):
     """Handler for the `init` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     path = Path(args.path)
     if path.exists():
         print(f"Refusing to overwrite existing {path}")
@@ -19,7 +19,7 @@ def cmd_init(ctx: Context):
 
 def cmd_models(ctx: Context):
     """Handler for the `models` command: status + first-run downloads."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...model_assets import download_missing, status
     if args.models_cmd == "download":
         keys = ([k.strip() for k in args.only.split(",") if k.strip()]
@@ -49,7 +49,7 @@ def cmd_models(ctx: Context):
 
 def cmd_doctor(ctx: Context):
     """Handler for the `doctor` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     print(json.dumps(check_dependencies(), indent=2))
     from ...util import project_data_plane
     plane = project_data_plane(prj)
@@ -73,7 +73,7 @@ def cmd_doctor(ctx: Context):
 
 def cmd_stats(ctx: Context):
     """Handler for the `stats` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     base = prj.output_path
     if not (base / DB_NAME).exists():
         print(f"No manifest at {base / DB_NAME}")
@@ -93,7 +93,7 @@ def cmd_overview(ctx: Context):
 
 def cmd_validate(ctx: Context):
     """Handler for the `validate` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...validate import render_report, run_validation
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -110,7 +110,7 @@ def cmd_validate(ctx: Context):
 
 def cmd_selftest(ctx: Context):
     """Handler for the `selftest` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     import subprocess
     runner = Path(__file__).resolve().parents[2] / "tests" / "run_all.py"
     if not runner.exists():
@@ -149,7 +149,7 @@ def cmd_gc(ctx: Context):
 
 def cmd_space(ctx: Context):
     """Handler for the `space` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...maintenance import space_report
     for row in space_report(prj, prj.output_path):
         print(f"  {row['area']:<16} {str(row['files']):>8} files  {row['human']:>10}")
@@ -157,7 +157,7 @@ def cmd_space(ctx: Context):
 
 def cmd_backup(ctx: Context):
     """Handler for the `backup` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...maintenance import backup_project
     out = backup_project(prj, args.out or None)
     print(f"Backup written -> {out}")
@@ -165,7 +165,7 @@ def cmd_backup(ctx: Context):
 
 def cmd_restore(ctx: Context):
     """Handler for the `restore` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...maintenance import restore_project
     dest = restore_project(args.archive, args.dest)
     print(f"Extracted to {dest} - review and place files manually.")
@@ -200,7 +200,7 @@ def cmd_status(ctx: Context):
 
 def cmd_runs(ctx: Context):
     """Handler for the `runs` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...train.kohya import list_runs
     conn = manifest.connect(prj.output_path, readonly=True)
     rows = list_runs(conn)
@@ -222,7 +222,7 @@ def cmd_health(ctx: Context):
 
 def cmd_history(ctx: Context):
     """Handler for the `history` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from . import dataset_versioning as dsv
     conn = manifest.connect(out_base(args.output))
     if args.dataset is not None:
@@ -248,7 +248,7 @@ def cmd_history(ctx: Context):
 
 def cmd_diff(ctx: Context):
     """Handler for the `diff` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     conn = manifest.connect(out_base(args.output))
     if args.dataset:
         # Phase 2 visual diff mode: --dataset N --vs M

@@ -614,7 +614,7 @@ def _load_package_map(output_base) -> dict:
                  base / mp.OUTPUT_FILES["plan"]):
         if cand.exists():
             try:
-                plan = mp.load_multi_recipe_package_plan(cand)
+                mp.load_multi_recipe_package_plan(cand)  # validates structure
                 # load_* doesn't restore packages; read raw for image assignments
                 import json as _json
                 raw = _json.loads(cand.read_text(encoding="utf-8"))
@@ -859,7 +859,6 @@ def _removal_reasons(output_base, removed_ids: Iterable[str]) -> dict:
     ids = list(removed_ids)
     if not ids:
         return {}
-    flt = ExplorerFilter(limit=MAX_PAGE_SIZE)
     sample = set(ids[:MAX_PAGE_SIZE])
     conn = connect_ro(output_base)
     reasons: dict = {}

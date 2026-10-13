@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_filter(ctx: Context):
     """Handler for the `filter` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     if not (prj.output_path / DB_NAME).exists():
         print(f"No manifest at {prj.output_path / DB_NAME}")
         return
@@ -39,7 +39,7 @@ def cmd_filter(ctx: Context):
 
 def cmd_review(ctx: Context):
     """Handler for the `review` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     rcmd = getattr(args, "review_cmd", None)
     if rcmd not in ("export", "import"):
         print("usage: pixel-curator review {export|import} ...")

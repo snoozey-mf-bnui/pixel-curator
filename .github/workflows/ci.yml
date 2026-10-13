@@ -25,8 +25,12 @@ jobs:
       - name: Ruff
         run: ruff check pixel_curator
 
-      - name: Pytest
-        run: python -m pytest
+      - name: Pytest (with coverage floor - ratchet up as coverage grows)
+        run: >
+          python -m pytest
+          --cov=pixel_curator
+          --cov-report=term-missing
+          --cov-fail-under=8
 
       - name: CLI smoke
         run: |

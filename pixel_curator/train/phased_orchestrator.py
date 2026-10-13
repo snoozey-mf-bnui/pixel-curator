@@ -138,8 +138,6 @@ class PhasedTrainingOrchestrator:
         project_path = str(project_path or self.project_path)
 
         ts = self._timestamp()
-        run_dir = (self.project_path.parent if self.project_path.name
-                   else self.project_path)
         # Use a stable outputs/ tree under the project path.
         base_out = Path(project_path).expanduser() / "outputs" / \
             "phased_training" / f"{ts}_cyberrealisticpony_personal_base"

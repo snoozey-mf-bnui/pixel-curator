@@ -381,7 +381,6 @@ def _analyze(
     noise_fraction = noise_count / n if n > 0 else 0.0
 
     non_noise_labels = labels[~noise_mask]
-    non_noise_indices = np.where(~noise_mask)[0]
     unique_labels = sorted(set(non_noise_labels.tolist()))
 
     if not unique_labels:

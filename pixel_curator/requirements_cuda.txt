@@ -1,3 +1,6 @@
+# NOTE: pyproject.toml is the canonical declaration of DIRECT
+# dependencies; this file is the pinned reference environment.
+# tests/test_requirements_sync.py keeps the two in sync.
 # CUDA variant of requirements_coreml.txt (NVIDIA GPUs, Linux/Windows).
 #
 # Differences from the CoreML (Apple Silicon) environment:

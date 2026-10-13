@@ -136,13 +136,9 @@ def estimate_geometric_integrity(keypoints: list[Point]) -> tuple[bool, float]:
     palm_size = _dist(wrist, keypoints[9]) # Wrist to middle MCP
     if palm_size < 1e-6: return True, 0.0
 
-    finger_tips = [4, 8, 12, 16, 20]
-    missing_fingers = 0
-    for tip_idx in finger_tips:
-        if _dist(wrist, keypoints[tip_idx]) < palm_size * 0.5:
-            # Tip is too close to palm, likely missing or severely deformed
-            # Note: This can trigger on a closed fist, but for generative AI it's a safe heuristic
-            pass # We'll rely on bone ratios instead, as fists are valid.
+    # Note: a "missing finger" heuristic (tip too close to the wrist) was
+    # tried and dropped - it fires on closed fists, which are valid poses.
+    # Bone-ratio checks below carry the deformity signal instead.
 
     # 2. Check Bone Ratios (Fingers should get progressively shorter)
     # Index: 5(MCP) -> 6(PIP) -> 7(DIP) -> 8(TIP)

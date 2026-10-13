@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_anchors_rebuild(ctx: Context):
     """Handler for the `anchors-rebuild` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...curate.anchor_quality import (
         AnchorQualityConfig,
         check_anchor_report,
@@ -38,7 +38,7 @@ def cmd_anchors_rebuild(ctx: Context):
 
 def cmd_diverse_select(ctx: Context):
     """Handler for the `diverse-select` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...diverse import diverse_select, fetch_candidates, render_plan
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -107,6 +107,7 @@ def cmd_quality(ctx: Context):
                                face_detector=face_detector,
                                advanced=advanced if advanced.enabled() else None,
                                resume=args.resume,
+                               workers=getattr(args, "workers", 1),
                                progress=getattr(args, "progress", True)
                                and not args.json)
     print(json.dumps(res, indent=2) if args.json else render_quality(res))
@@ -151,7 +152,7 @@ def cmd_categorize(ctx: Context):
 
 def cmd_outfit(ctx: Context):
     """Handler for the `outfit` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...curate.outfit import render_outfit, run_outfit_pass
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -165,7 +166,7 @@ def cmd_outfit(ctx: Context):
 
 def cmd_framing_report(ctx: Context):
     """Handler for the `framing-report` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...curate.framing import framing_distribution, render_framing
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -191,6 +192,10 @@ def cmd_anchor(ctx: Context):
 def cmd_curate(ctx: Context):
     """Handler for the `curate` command."""
     args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    if getattr(args, "list_scorers", False):
+        from ...curate.scorer_registry import render_scorers
+        print(render_scorers())
+        return
     base = out_base(args.output)
     if not args.smart_only:
         cfg = CurateConfig(
@@ -234,7 +239,7 @@ def cmd_curate(ctx: Context):
 
 def cmd_insights(ctx: Context):
     """Handler for the `insights` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from . import insights
     # collapse/rotation write; dashboard/health/lint are read-only and must
     # keep working while training holds the manifest. `clusters` prefers a
@@ -320,7 +325,7 @@ def cmd_insights(ctx: Context):
 
 def cmd_duplicates(ctx: Context):
     """Handler for the `duplicates` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...curate.duplicates import DuplicateScanConfig, scan_duplicates, scan_generator
     conn = manifest.connect(out_base(args.output))
     dcfg = DuplicateScanConfig(
@@ -350,7 +355,7 @@ def cmd_rescore(ctx: Context):
 
 def cmd_classify(ctx: Context):
     """Handler for the `classify` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...services import visual_focus_classifier as vc
     ccmd = getattr(args, "classify_cmd", None)
     if ccmd is None:
@@ -431,8 +436,8 @@ def cmd_classify(ctx: Context):
 
 def cmd_visual_focus(ctx: Context):
     """Handler for the `visual-focus` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
-    from ...curate import visual_focus_classifier as vfc
+    args = ctx.args
+    from ...curate import visual_focus_cv as vfc
     from ...services import visual_focus_service as vfs
     vcmd = getattr(args, "vf_cmd", None)
     cfg = vfc.VisualFocusConfig(
@@ -475,7 +480,7 @@ def cmd_visual_focus(ctx: Context):
 
 def cmd_explorer(ctx: Context):
     """Handler for the `explorer` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...services import dataset_explorer as dx
     from ...services import pipeline_lineage as pl
     xbase = Path(args.output_base).expanduser() if getattr(
@@ -562,7 +567,7 @@ def cmd_explorer(ctx: Context):
 
 def cmd_datasets(ctx: Context):
     """Handler for the `datasets` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    prj = ctx.prj
     from ...builder import list_datasets
     conn = manifest.connect(prj.output_path)
     rows = list_datasets(conn)
@@ -580,7 +585,7 @@ def cmd_datasets(ctx: Context):
 
 def cmd_viz(ctx: Context):
     """Handler for the `viz` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...viz import build_viz_payload, render_viz_summary
     conn = manifest.connect(out_base(args.output))
     payload = build_viz_payload(
@@ -599,7 +604,7 @@ def cmd_viz(ctx: Context):
 
 def cmd_cluster(ctx: Context):
     """Handler for the `cluster` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     cfg = ClusterConfig(
         output_base=out_base(args.output), k=args.k,
         batch_size=args.batch_size, reembed=args.reembed,

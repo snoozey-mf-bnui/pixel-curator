@@ -54,7 +54,7 @@ def cmd_orient(ctx: Context):
 
 def cmd_keyframes(ctx: Context):
     """Handler for the `keyframes` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...curate.keyframes import prune_video_keyframes, render_keyframes
     base = out_base(args.output)
     if not (base / DB_NAME).exists():
@@ -99,7 +99,7 @@ def cmd_extract(ctx: Context):
 
 def cmd_smart_extract(ctx: Context):
     """Handler for the `smart-extract` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     # NSFW smart extraction: same engine as `extract`, but the config is
     # built from the [extraction] section of the project TOML (which -p
     # points at — typically pixel-curator_nsfw_v2.toml).
@@ -128,7 +128,7 @@ def cmd_photos(ctx: Context):
 
 def cmd_prefilter(ctx: Context):
     """Handler for the `prefilter` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, out_base = ctx.args, ctx.out_base
     from ...prefilter import prefilter_generator, prefilter_summary, restore_prefiltered
     base = out_base(args.output)
     if args.restore:

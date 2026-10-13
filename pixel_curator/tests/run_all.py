@@ -90,7 +90,8 @@ def test_export(tmp: Path) -> None:
     if ok:
         picked = [row["source"] for row in csv.DictReader(
             open(r3["index"]))]
-        check("export select: balanced spread over 3 clusters", ok)
+        check("export select: balanced spread over 3 clusters",
+              ok and len(picked) == 6)
     else:
         check("export select: balanced spread over 3 clusters", False,
               str(r3))

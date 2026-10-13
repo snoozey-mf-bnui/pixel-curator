@@ -1307,7 +1307,7 @@ def main():
     try:
         cands = load_candidates(conn)
         selected, explanations, summary = select_frames(cands, config)
-        results = write_outputs(selected, explanations, summary, config,
+        write_outputs(selected, explanations, summary, config,
                                 Path(args.output), apply=args.apply,
                                 manifest_base=prj.output_path)
         logger.info(f"Done. Selected {len(selected)} frames.")

@@ -83,7 +83,6 @@ def iter_frame_records(conn: sqlite3.Connection) -> Iterator[dict]:
 def _unified_scores(records: list[dict]) -> None:
     """Attach a 0..1 ``score`` to each record: integrity when available,
     else percentile rank of sharpness. Mutates records in place."""
-    have_integrity = [r for r in records if r.get("integrity") is not None]
     sharp_vals = sorted(
         float(r.get("sharpness") or 0.0) for r in records)
     n = max(len(sharp_vals), 1)

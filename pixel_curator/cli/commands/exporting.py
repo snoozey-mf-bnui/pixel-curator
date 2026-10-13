@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_export(ctx: Context):
     """Handler for the `export` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     ecmd = getattr(args, "export_cmd", None)
     if ecmd not in ("manifest", "select"):
         print("usage: pixel-curator export {manifest|select} ...")
@@ -35,7 +35,7 @@ def cmd_export(ctx: Context):
 
 def cmd_package(ctx: Context):
     """Handler for the `package` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     if getattr(args, "package_cmd", None) != "kohya":
         print("usage: pixel-curator package kohya --dataset ... --output ...")
         return
@@ -113,7 +113,7 @@ def cmd_package(ctx: Context):
 
 def cmd_dataset_card(ctx: Context):
     """Handler for the `dataset-card` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args = ctx.args
     from ...curate.dataset_cards import (
         DatasetCardConfig,
         DatasetValidationConfig,
@@ -182,7 +182,7 @@ def cmd_export_dreambooth(ctx: Context):
 
 def cmd_previews(ctx: Context):
     """Handler for the `previews` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from pathlib import Path as _P
 
     from ...lora_explorer import lora_dirs
@@ -200,7 +200,7 @@ def cmd_previews(ctx: Context):
 
 def cmd_multi_recipe_packages(ctx: Context):
     """Handler for the `multi-recipe-packages` command."""
-    args, prj, out_base = ctx.args, ctx.prj, ctx.out_base
+    args, prj = ctx.args, ctx.prj
     from ...services import multi_recipe_packager as mp
     recs = []
     if args.input and Path(args.input).expanduser().exists():
@@ -271,7 +271,7 @@ def cmd_multi_recipe_packages(ctx: Context):
         or "spikbnui person",
         class_token=getattr(prj, "class_word", "person"))
     plan = mp.build_multi_recipe_package_plan(recs, out, cfg)
-    written = mp.write_multi_recipe_package_plan(plan, out,
+    mp.write_multi_recipe_package_plan(plan, out,
                                                  overwrite=args.overwrite)
     mat = mp.materialize_multi_recipe_packages(plan, cfg)
     try:

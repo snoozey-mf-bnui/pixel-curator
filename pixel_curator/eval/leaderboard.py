@@ -136,7 +136,6 @@ def head_to_head(conn: sqlite3.Connection, label_a: str, label_b: str) -> dict:
 def render_leaderboard(board: dict) -> str:
     if board.get("warning"):
         return f"Leaderboard: {board['warning']}"
-    cats = board["categories"]
     lines = ["", "Cross-run eval leaderboard",
              "=" * 64,
              f"{board['n_candidates']} candidates  |  ranked on "

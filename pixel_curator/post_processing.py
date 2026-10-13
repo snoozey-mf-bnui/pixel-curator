@@ -24,19 +24,16 @@ log = logging.getLogger("redresser.post_processing")
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
-def _default_model(filename: str, subdir: str, legacy: str) -> Path:
-    """Prefer the repo-local ``models/<subdir>/<filename>`` copy; fall back
-    to the legacy external-SSD path when the local file is absent."""
-    local = _PACKAGE_ROOT / "models" / subdir / filename
-    return local if local.exists() else Path(legacy)
+def _default_model(filename: str, subdir: str) -> Path:
+    """Repo-local ``models/<subdir>/<filename>``; auto-downloaded on first
+    use via :mod:`pixel_curator.model_assets` when absent."""
+    return _PACKAGE_ROOT / "models" / subdir / filename
 
 
 DEFAULT_REALESRGAN_MODEL = _default_model(
-    "RealESRGAN_x4plus.pth", "realesrgan",
-    "/Volumes/CURATOR_SSD/TAKEOUTS/RealESRGAN_x4plus.pth")
+    "RealESRGAN_x4plus.pth", "realesrgan")
 DEFAULT_GFPGAN_MODEL = _default_model(
-    "GFPGANv1.4.pth", "gfpgan",
-    "/Volumes/CURATOR_SSD/TAKEOUTS/GFPGANv1.4.pth")
+    "GFPGANv1.4.pth", "gfpgan")
 
 GFPGAN_WEIGHT_MIN = 0.0
 GFPGAN_WEIGHT_MAX = 0.7
