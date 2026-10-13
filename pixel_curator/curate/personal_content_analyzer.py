@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 ANALYZER_VERSION = "1.0"
 
@@ -73,7 +73,7 @@ class PersonalAnalyzerConfig:
     write_manifest_fields: bool = True
 
     @classmethod
-    def from_dict(cls, d: Optional[dict]) -> "PersonalAnalyzerConfig":
+    def from_dict(cls, d: dict | None) -> PersonalAnalyzerConfig:
         d = d or {}
         return cls(
             enabled=_as_bool(d.get("enabled", False)),
@@ -138,8 +138,8 @@ def normalize_suitability_branch(value: Any) -> str:
 # Signal extraction (defensive: top-level or nested under "metadata")
 # ---------------------------------------------------------------------------
 
-def _lookup(sample: dict, keys: tuple, default: Optional[float] = None
-           ) -> Optional[float]:
+def _lookup(sample: dict, keys: tuple, default: float | None = None
+           ) -> float | None:
     meta = sample.get("metadata") if isinstance(sample, dict) else None
     for store in (sample, meta):
         if not isinstance(store, dict):
@@ -157,24 +157,24 @@ def _clamp01(x: float) -> float:
     return 0.0 if x < 0 else 1.0 if x > 1 else x
 
 
-def _signal_sharpness(sample: dict) -> Optional[float]:
+def _signal_sharpness(sample: dict) -> float | None:
     s = _lookup(sample, ("sharpness", "sharpness_score", "focus", "blur_score"))
     return _clamp01(s / _SHARPNESS_REF) if s is not None else None
 
 
-def _signal_face_visibility(sample: dict) -> Optional[float]:
+def _signal_face_visibility(sample: dict) -> float | None:
     fv = _lookup(sample, ("face_visibility", "face_area", "face_area_ratio",
                           "face_ratio"))
     return _clamp01(fv) if fv is not None else None
 
 
-def _signal_identity(sample: dict) -> Optional[float]:
+def _signal_identity(sample: dict) -> float | None:
     idc = _lookup(sample, ("identity_confidence", "identity_sim",
                            "identity_score", "det_conf"))
     return _clamp01(idc) if idc is not None else None
 
 
-def _signal_resolution(sample: dict) -> Optional[float]:
+def _signal_resolution(sample: dict) -> float | None:
     w = _lookup(sample, ("width", "image_width", "w"))
     h = _lookup(sample, ("height", "image_height", "h"))
     if w is not None and h is not None:
@@ -230,7 +230,7 @@ def analyze_personal_sample(sample: dict, *,
     }
 
 
-def enrich_sample(sample: dict, config: Optional[PersonalAnalyzerConfig]
+def enrich_sample(sample: dict, config: PersonalAnalyzerConfig | None
                   ) -> dict:
     """Optionally attach suitability metadata to ``sample`` in place.
 

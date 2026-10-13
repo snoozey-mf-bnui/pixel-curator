@@ -15,11 +15,13 @@ their absence degrades to a recorded warning, never a crash.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Ordered stage ids (TASK 12B).
 STAGES = (
@@ -85,7 +87,7 @@ class WorkflowRunConfig:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "WorkflowRunConfig":
+    def from_dict(cls, data: dict) -> WorkflowRunConfig:
         data = dict(data or {})
         stages = data.pop("stages", None)
         known = {f for f in cls.__dataclass_fields__ if f != "stages"}
@@ -155,6 +157,7 @@ def load_workflow_state(run_dir) -> dict:
             data = json.loads(p.read_text(encoding="utf-8"))
             return data if isinstance(data, dict) else {}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return {}
 
@@ -166,6 +169,7 @@ def save_workflow_state(run_dir, state: dict) -> None:
         (run_dir / "workflow_state.json").write_text(
             json.dumps(state, indent=2), encoding="utf-8")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
 
@@ -177,6 +181,7 @@ def load_workflow_config(path) -> WorkflowRunConfig:
         if isinstance(data, dict):
             return WorkflowRunConfig.from_dict(data)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return WorkflowRunConfig(project_root="", output_dir="")
 
@@ -384,8 +389,7 @@ def _exec_curation(run, cfg, planned):
 def _exec_validate(run, cfg, planned):
     out_dir = run / "validation"
     out_dir.mkdir(parents=True, exist_ok=True)
-    from ..curate.dataset_cards import (validate_exported_dataset,
-                                        DatasetValidationConfig)
+    from ..curate.dataset_cards import DatasetValidationConfig, validate_exported_dataset
     vcfg = DatasetValidationConfig(strict=cfg.strict_validation)
     reports, warn_total = {}, 0
     exports = run / "dataset_exports"
@@ -399,7 +403,7 @@ def _exec_validate(run, cfg, planned):
                "total_warnings": warn_total, "reports": reports}
     (out_dir / "validation_report.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8")
-    md = [f"# Validation Report", "",
+    md = ["# Validation Report", "",
           f"- Datasets validated: {len(reports)}",
           f"- Total warnings: {warn_total}", ""]
     for t, r in reports.items():
@@ -439,8 +443,7 @@ def _exec_export(run, cfg, planned):
 
 def _exec_anchor(run, cfg, planned):
     out_dir = run / "anchor_rebuilds" / "v001_core_identity_anchors"
-    from ..curate.anchor_quality import (rebuild_anchor_set,
-                                         AnchorQualityConfig)
+    from ..curate.anchor_quality import AnchorQualityConfig, rebuild_anchor_set
     src = cfg.extra.get("anchor_source") or (cfg.photos[0] if cfg.photos
                                              else str(run))
     rep = rebuild_anchor_set(Path(src).expanduser(), out_dir,
@@ -451,9 +454,11 @@ def _exec_anchor(run, cfg, planned):
 
 
 def _exec_packaging(run, cfg, planned):
-    from ..export.kohya_packager import (package_kohya_dataset,
-                                         KohyaPackageConfig,
-                                         CaptionTemplateConfig)
+    from ..export.kohya_packager import (
+        CaptionTemplateConfig,
+        KohyaPackageConfig,
+        package_kohya_dataset,
+    )
     exports = run / "dataset_exports"
     out_root = run / "colab_packages"
     outputs, warnings = {}, []
@@ -477,8 +482,7 @@ def _exec_packaging(run, cfg, planned):
 
 
 def _exec_training_plans(run, cfg, planned):
-    from ..train.recipe_builder import (build_training_recipe,
-                                        write_training_recipe)
+    from ..train.recipe_builder import build_training_recipe, write_training_recipe
     exports = run / "dataset_exports"
     packages = run / "colab_packages"
     out_root = run / "training_plans"

@@ -22,12 +22,11 @@ import logging
 import math
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
+from ..util import now_iso
 from .kohya_config_builder import render_toml
 from .param_advisor import _MIN_EPOCHS, _band_for, recommend_training_params
 from .presets import PRESETS
-from ..util import now_iso
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ _TRAIN_SCRIPT = {"lora": "train_network.py",
 # ---------------------------------------------------------------------------
 
 def _fallback_params(frame_count: int, preset: str,
-                     presets: Optional[dict] = None) -> dict:
+                     presets: dict | None = None) -> dict:
     """Count-based recommendation for unversioned folder exports.
 
     Same steps-comfort-band math as the Phase 4 advisor, driven only by
@@ -109,8 +108,8 @@ def _fallback_params(frame_count: int, preset: str,
     }
 
 
-def _advise(conn, dataset_version: Optional[int], frame_count: Optional[int],
-            preset: Optional[str]) -> dict:
+def _advise(conn, dataset_version: int | None, frame_count: int | None,
+            preset: str | None) -> dict:
     """Advisor when a version exists; count-based fallback otherwise."""
     if dataset_version is not None and conn is not None:
         try:
@@ -142,8 +141,8 @@ def _advise(conn, dataset_version: Optional[int], frame_count: Optional[int],
 # experiment awareness (Phase 8)
 # ---------------------------------------------------------------------------
 
-def experiment_hints(conn, *, dataset_version: Optional[int] = None,
-                     frame_count: Optional[int] = None,
+def experiment_hints(conn, *, dataset_version: int | None = None,
+                     frame_count: int | None = None,
                      limit: int = 4) -> list[dict]:
     """Past training outcomes relevant to this export.
 
@@ -227,9 +226,9 @@ def _plain_params(rec: dict) -> dict:
 
 def compose_kohya_config(rec: dict, *, export_dir: Path,
                          model_type: str = "lora",
-                         base_model: Optional[str] = None,
-                         output_name: Optional[str] = None,
-                         overrides: Optional[dict] = None) -> tuple[dict, dict]:
+                         base_model: str | None = None,
+                         output_name: str | None = None,
+                         overrides: dict | None = None) -> tuple[dict, dict]:
     """Merge advisor values into a full kohya config.
 
     Returns ``(config, reasons)`` where reasons maps config keys to the
@@ -352,13 +351,13 @@ def render_train_sh(config_path: Path, model_type: str) -> str:
 # ---------------------------------------------------------------------------
 
 def generate_training_bundle(conn, export_dir: Path | str, *,
-                             dataset_version: Optional[int] = None,
-                             frame_count: Optional[int] = None,
+                             dataset_version: int | None = None,
+                             frame_count: int | None = None,
                              model_type: str = "lora",
-                             preset: Optional[str] = None,
-                             base_model: Optional[str] = None,
-                             output_name: Optional[str] = None,
-                             overrides: Optional[dict] = None,
+                             preset: str | None = None,
+                             base_model: str | None = None,
+                             output_name: str | None = None,
+                             overrides: dict | None = None,
                              write: bool = True) -> dict:
     """Generate the ready-to-train bundle for an exported dataset.
 
@@ -420,7 +419,7 @@ def generate_training_bundle(conn, export_dir: Path | str, *,
     return result
 
 
-def generate_for_export(conn, export_dir, **kw) -> tuple[Optional[dict],
+def generate_for_export(conn, export_dir, **kw) -> tuple[dict | None,
                                                          list[str]]:
     """Failure-proof wrapper for export integration points.
 

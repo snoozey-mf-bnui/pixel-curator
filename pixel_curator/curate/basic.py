@@ -3,20 +3,23 @@ exposure filtering. Pure stdlib (Pillow used opportunistically)."""
 
 from __future__ import annotations
 
+import logging
 import subprocess
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Generator, Optional
 
 from .. import manifest
 from ..config import CurateConfig
 from ..util import HAVE_PIL, now_iso, setup_logging
 
+logger = logging.getLogger(__name__)
+
 if HAVE_PIL:
     from PIL import Image
 
 
-def load_gray(path: Path, w: int, h: int) -> Optional[list[int]]:
+def load_gray(path: Path, w: int, h: int) -> list[int] | None:
     """Grayscale w*h pixel list. Pillow if available, else ffmpeg rawvideo."""
     if HAVE_PIL:
         try:
@@ -24,6 +27,7 @@ def load_gray(path: Path, w: int, h: int) -> Optional[list[int]]:
                 im = im.convert("L").resize((w, h), Image.BILINEAR)
                 return list(im.getdata())
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
     try:
         proc = subprocess.run(
@@ -37,6 +41,7 @@ def load_gray(path: Path, w: int, h: int) -> Optional[list[int]]:
             return None
         return list(data[: w * h])
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -69,7 +74,7 @@ def laplacian_variance(gray: list[int], w: int, h: int) -> float:
     return sum((v - mean) ** 2 for v in vals) / len(vals)
 
 
-def score_frame(path_str: str) -> Optional[tuple[str, float, float]]:
+def score_frame(path_str: str) -> tuple[str, float, float] | None:
     res = score_frame_ex(path_str, text_check=False)
     if res is None:
         return None
@@ -78,7 +83,7 @@ def score_frame(path_str: str) -> Optional[tuple[str, float, float]]:
 
 def score_frame_ex(
     path_str: str, text_check: bool = True
-) -> Optional[tuple[str, float, float, Optional[str]]]:
+) -> tuple[str, float, float, str | None] | None:
     """score_frame plus the Phase 5 text-overlay band check, which reuses
     the 96x96 gray this function decodes anyway (zero extra I/O). Returns
     ``(dhash, sharpness, brightness, prefilter_reason_or_None)``."""

@@ -17,10 +17,12 @@ all previous defaults.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import platform
 import sys
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 VALID_DEVICES = ("auto", "cuda", "mps", "cpu")
 
@@ -33,6 +35,7 @@ def _torch():
         import torch
         return torch
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -104,6 +107,7 @@ def get_recommended_dtype(device=None, precision: str = "auto"):
             if torch.cuda.is_bf16_supported():
                 return torch.bfloat16
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return torch.float16
     if name == "mps":
@@ -122,6 +126,7 @@ def apply_cuda_settings(allow_tf32: bool = True) -> None:
         t.backends.cudnn.allow_tf32 = bool(allow_tf32)
         _TF32_APPLIED = bool(allow_tf32)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
 
@@ -139,6 +144,7 @@ def clear_accelerator_cache(device=None) -> None:
         elif name == "mps" and is_mps_available():
             t.mps.empty_cache()
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
 
@@ -156,7 +162,7 @@ def autocast_context(device=None, dtype=None):
         yield
 
 
-def onnx_providers(preferred: Optional[str] = None) -> list[str]:
+def onnx_providers(preferred: str | None = None) -> list[str]:
     """Ordered onnxruntime execution providers.
 
     preferred: auto | cuda | coreml | cpu.  Resolution order: the explicit
@@ -237,6 +243,7 @@ def get_accelerator_info(preferred: str = "auto",
                 get_recommended_dtype(info["selected_device"], precision)
             ).replace("torch.", "")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     if info["cuda_available"]:
         try:
@@ -244,6 +251,7 @@ def get_accelerator_info(preferred: str = "auto",
             info["cuda_device"] = props.name
             info["cuda_vram_gb"] = round(props.total_memory / (1024 ** 3), 1)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return info
 

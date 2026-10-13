@@ -9,7 +9,6 @@ defaults and surface as warning reasons.  Pure stdlib, additive.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Optional
 
 SCHEMA_VERSION = 2
 
@@ -123,7 +122,7 @@ def _norm_range(value, default: tuple, field_name: str,
         return default
 
 
-def _norm_axis(raw: dict, warnings: list[str]) -> Optional[ControlAxis]:
+def _norm_axis(raw: dict, warnings: list[str]) -> ControlAxis | None:
     if not isinstance(raw, dict) or not raw.get("axis_id"):
         warnings.append("control axis without axis_id skipped")
         return None
@@ -143,7 +142,7 @@ def _norm_axis(raw: dict, warnings: list[str]) -> Optional[ControlAxis]:
                                         "identity_sensitivity", warnings))
 
 
-def _norm_conflict(raw, warnings: list[str]) -> Optional[KnownConflict]:
+def _norm_conflict(raw, warnings: list[str]) -> KnownConflict | None:
     if isinstance(raw, str):                 # v1 style: bare lora id
         return KnownConflict(lora_id=raw)
     if not isinstance(raw, dict):
@@ -157,7 +156,7 @@ def _norm_conflict(raw, warnings: list[str]) -> Optional[KnownConflict]:
                             "medium", "conflict severity", warnings))
 
 
-def normalize_concept_metadata(raw: Optional[dict], stem: str,
+def normalize_concept_metadata(raw: dict | None, stem: str,
                                source: str = "inferred") -> ConceptMetadata:
     """Any sidecar shape (or None) -> normalized ConceptMetadata.
     Tolerant by contract: never raises."""

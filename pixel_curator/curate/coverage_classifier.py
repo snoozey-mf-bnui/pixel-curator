@@ -19,13 +19,12 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
@@ -43,12 +42,12 @@ class CoverageClassification:
     """Container for framing / coverage classification results."""
     category: str = "unknown"
     confidence: float = 0.0
-    face_ratio: Optional[float] = None
-    body_ratio: Optional[float] = None
-    has_full_body: Optional[bool] = None
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    face_ratio: float | None = None
+    body_ratio: float | None = None
+    has_full_body: bool | None = None
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts classification to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -58,7 +57,7 @@ class CoverageClassification:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_ratio(value: Optional[float]) -> Optional[float]:
+def _sanitize_ratio(value: float | None) -> float | None:
     """Validates ratio scores. Clamps to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -70,8 +69,8 @@ def _sanitize_ratio(value: Optional[float]) -> Optional[float]:
 
 
 def _calculate_dynamic_confidence(
-    value: float, 
-    threshold: float, 
+    value: float,
+    threshold: float,
     max_scale: float = 1.0
 ) -> float:
     """
@@ -85,24 +84,24 @@ def _calculate_dynamic_confidence(
     return min(1.0, 0.5 + (0.5 * conf)) * max_scale
 
 
-def compute_area_ratio(bbox: Optional[BBox], img_width: int, img_height: int) -> Optional[float]:
+def compute_area_ratio(bbox: BBox | None, img_width: int, img_height: int) -> float | None:
     """Computes the area ratio of a bounding box relative to the image."""
     if bbox is None or img_width <= 0 or img_height <= 0:
         return None
-    
+
     x1, y1, x2, y2 = bbox
     bbox_area = max(0, x2 - x1) * max(0, y2 - y1)
     img_area = img_width * img_height
-    
+
     if img_area == 0:
         return None
-        
+
     return _sanitize_ratio(bbox_area / img_area)
 
 
 def infer_has_full_body(
-    body_bbox: Optional[BBox], 
-    img_height: int, 
+    body_bbox: BBox | None,
+    img_height: int,
     vertical_span_threshold: float = 0.85
 ) -> bool:
     """
@@ -111,20 +110,20 @@ def infer_has_full_body(
     """
     if body_bbox is None or img_height <= 0:
         return False
-        
+
     x1, y1, x2, y2 = body_bbox
     bbox_height = y2 - y1
-    
+
     if bbox_height <= 0:
         return False
-        
+
     vertical_span = bbox_height / img_height
     return vertical_span >= vertical_span_threshold
 
 
 def classify_coverage(
-    face_area_ratio: Optional[float] = None,
-    body_area_ratio: Optional[float] = None,
+    face_area_ratio: float | None = None,
+    body_area_ratio: float | None = None,
     has_full_body: bool = False,
     is_dynamic_angle: bool = False,
     thresholds: CoverageThresholds = CoverageThresholds(),
@@ -135,13 +134,13 @@ def classify_coverage(
     # Sanitize inputs
     face_ratio = _sanitize_ratio(face_area_ratio)
     body_ratio = _sanitize_ratio(body_area_ratio)
-    
+
     thresh_dict = asdict(thresholds)
 
     if face_ratio is None and body_ratio is None:
         return CoverageClassification(
-            category="unknown", 
-            confidence=0.0, 
+            category="unknown",
+            confidence=0.0,
             thresholds_used=thresh_dict
         )
 
@@ -154,12 +153,12 @@ def classify_coverage(
     # 1. Check for Full Body / Dynamic Wide first (structural override)
     if has_full_body or (body_ratio is not None and body_ratio > thresholds.full_figure_body):
         category = "dynamic_wide" if is_dynamic_angle else "full_figure"
-        
+
         # Calculate confidence based on body ratio
         conf = 0.8  # Base confidence if inferred via has_full_body flag
         if body_ratio is not None and body_ratio > thresholds.full_figure_body:
             conf = _calculate_dynamic_confidence(body_ratio, thresholds.full_figure_body)
-            
+
         return CoverageClassification(
             category=category,
             confidence=conf,
@@ -217,8 +216,8 @@ def classify_coverage(
 
 
 def classify_from_bboxes(
-    face_bbox: Optional[BBox] = None,
-    body_bbox: Optional[BBox] = None,
+    face_bbox: BBox | None = None,
+    body_bbox: BBox | None = None,
     img_width: int = 0,
     img_height: int = 0,
     is_dynamic_angle: bool = False,
@@ -234,10 +233,10 @@ def classify_from_bboxes(
 
     face_ratio = compute_area_ratio(face_bbox, img_width, img_height)
     body_ratio = compute_area_ratio(body_bbox, img_width, img_height)
-    
+
     has_full_body = infer_has_full_body(
-        body_bbox, 
-        img_height, 
+        body_bbox,
+        img_height,
         thresholds.full_body_vertical_span
     )
 
@@ -263,7 +262,7 @@ if __name__ == "__main__":
     # Face takes up 20% of screen (Very solid close portrait)
     scores_1 = classify_coverage(face_area_ratio=0.20, body_area_ratio=0.35)
     print(f"   Category: {scores_1.category}, Confidence: {scores_1.confidence:.2f}")
-    
+
     # Face takes up 16% of screen (Barely a close portrait, lower confidence)
     scores_2 = classify_coverage(face_area_ratio=0.16, body_area_ratio=0.30)
     print(f"   Category: {scores_2.category}, Confidence: {scores_2.confidence:.2f}\n")
@@ -273,7 +272,7 @@ if __name__ == "__main__":
     # Face bbox: 800, 200, 1100, 500 (300x300 = 90,000px)
     # Body bbox: 700, 150, 1200, 1000 (500x850 = 425,000px)
     # Image Area: 2,073,600px
-    # Face Ratio ~= 0.043, Body Ratio ~= 0.205. 
+    # Face Ratio ~= 0.043, Body Ratio ~= 0.205.
     # Vertical span = 850/1080 = 0.78 (Not full body).
     bbox_scores = classify_from_bboxes(
         face_bbox=(800, 200, 1100, 500),

@@ -19,13 +19,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import logging
+
 from pixel_curator import manifest  # noqa: E402
-from pixel_curator.export.general import (  # noqa: E402
-    export_manifest, export_selection)
-from pixel_curator.export.review import (  # noqa: E402
-    build_review_report, import_review_decisions)
-from pixel_curator.studio.generation_log import (  # noqa: E402
-    add_generation_to_log, identity_anchor_hash)
+
+logger = logging.getLogger(__name__)
+from pixel_curator.export.general import export_manifest, export_selection  # noqa: E402
+from pixel_curator.export.review import build_review_report, import_review_decisions  # noqa: E402
+from pixel_curator.studio.generation_log import add_generation_to_log, identity_anchor_hash  # noqa: E402
 
 RESULTS = []
 
@@ -43,6 +44,7 @@ def _fixture_db(tmp: Path):
     try:
         conn.execute("ALTER TABLE frames ADD COLUMN cluster_id INTEGER")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     for i in range(1, 13):
         p = imgdir / f"f{i:03}.jpg"

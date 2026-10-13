@@ -9,12 +9,13 @@ card next to the checkpoint.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
-from typing import Optional
 
-from . import manifest
 from .config import Project
 from .util import human_bytes, now_iso
+
+logger = logging.getLogger(__name__)
 
 
 def _lora_dir(prj: Project) -> Path:
@@ -37,6 +38,7 @@ def build_registry(prj: Project, conn) -> list[dict]:
                 "n": n, "avg": round(avg, 4) if avg is not None else None
             }
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     entries: dict[str, dict] = {}
@@ -56,6 +58,7 @@ def build_registry(prj: Project, conn) -> list[dict]:
                 "evals": evals.get(name, {}),
             }
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # merges (meta keys merge:*)
@@ -73,6 +76,7 @@ def build_registry(prj: Project, conn) -> list[dict]:
                 "evals": evals.get(name, {}),
             }
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # loose files not covered above
@@ -91,12 +95,12 @@ def build_registry(prj: Project, conn) -> list[dict]:
     return sorted(entries.values(), key=lambda e: e["name"])
 
 
-def best_likeness(entry: dict) -> Optional[float]:
+def best_likeness(entry: dict) -> float | None:
     lk = entry.get("evals", {}).get("likeness", {})
     return lk.get("avg")
 
 
-def model_card(prj: Project, conn, name: str) -> Optional[Path]:
+def model_card(prj: Project, conn, name: str) -> Path | None:
     """Write MODEL_CARD_<name>.md next to the checkpoint. Returns path."""
     entry = next((e for e in build_registry(prj, conn) if e["name"] == name), None)
     if entry is None:

@@ -21,10 +21,10 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import Project
@@ -39,14 +39,14 @@ STALL_SECONDS = 900.0          # 'running' but no new step in 15 min -> stalled
 # Disk
 # -----------------------------
 
-def free_gb(path: str | Path = BOOT_PATH) -> Optional[float]:
+def free_gb(path: str | Path = BOOT_PATH) -> float | None:
     try:
         return shutil.disk_usage(str(path)).free / 1024 ** 3
     except OSError:
         return None
 
 
-def disk_volumes(prj: Project, output_base: Optional[Path] = None) -> list[dict]:
+def disk_volumes(prj: Project, output_base: Path | None = None) -> list[dict]:
     """Boot volume + every distinct volume the project writes to."""
     candidates: list[tuple[str, Path]] = [("boot (Macintosh HD)", Path(BOOT_PATH))]
     lora_out = Path(prj.lora_output_dir
@@ -74,7 +74,7 @@ def disk_volumes(prj: Project, output_base: Optional[Path] = None) -> list[dict]
 
 
 def disk_guard(prj: Project, min_free_gb: float = DEFAULT_MIN_FREE_GB,
-               output_base: Optional[Path] = None) -> tuple[bool, str]:
+               output_base: Path | None = None) -> tuple[bool, str]:
     """(ok, report). Boot volume below the floor -> hard fail with fix tips.
     A cramped output volume only warns - checkpoints are small."""
     if min_free_gb <= 0:
@@ -130,7 +130,7 @@ def _esc(s: str) -> str:
 # Status snapshot
 # -----------------------------
 
-def latest_run(conn) -> Optional[dict]:
+def latest_run(conn) -> dict | None:
     """The running run if any, else the most recent one."""
     for clause in ("WHERE status='running'", ""):
         row = conn.execute(
@@ -147,15 +147,15 @@ def latest_run(conn) -> Optional[dict]:
     return None
 
 
-def last_progress_ts(conn, run_id: int) -> Optional[str]:
+def last_progress_ts(conn, run_id: int) -> str | None:
     """ISO timestamp of the most recent recorded training step, or None."""
     row = conn.execute(
         "SELECT MAX(ts) FROM run_metrics WHERE run_id=?", (run_id,)).fetchone()
     return row[0] if row and row[0] else None
 
 
-def stall_check(run: Optional[dict], last_ts: Optional[str], *,
-                now: Optional[datetime] = None,
+def stall_check(run: dict | None, last_ts: str | None, *,
+                now: datetime | None = None,
                 stall_seconds: float = STALL_SECONDS) -> dict:
     """Pure: is a 'running' run idle (no new step) beyond the threshold?
 
@@ -177,7 +177,7 @@ def stall_check(run: Optional[dict], last_ts: Optional[str], *,
     return {"stalled": idle > stall_seconds, "idle_seconds": round(idle, 1)}
 
 
-def step_rate(conn, run_id: int, window: int = 60) -> Optional[float]:
+def step_rate(conn, run_id: int, window: int = 60) -> float | None:
     """Seconds per step over the most recent metric window."""
     rows = conn.execute(
         "SELECT step, ts FROM run_metrics WHERE run_id=? "
@@ -193,7 +193,7 @@ def step_rate(conn, run_id: int, window: int = 60) -> Optional[float]:
     return dt / (s1 - s0) if s1 > s0 and dt > 0 else None
 
 
-def fmt_eta(seconds: Optional[float]) -> str:
+def fmt_eta(seconds: float | None) -> str:
     if seconds is None or seconds <= 0:
         return "-"
     h, rem = divmod(int(seconds), 3600)
@@ -284,10 +284,10 @@ class FollowConfig:
 
 
 def follow_generator(prj: Project, cfg: FollowConfig) -> Generator[str, None, None]:
-    known: Optional[set[str]] = None
+    known: set[str] | None = None
     warned_disk = False
     warned_stall = False
-    last_status: Optional[str] = None
+    last_status: str | None = None
     polls = 0
 
     while True:

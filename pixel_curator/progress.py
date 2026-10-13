@@ -19,7 +19,6 @@ Typical use inside a ``*_generator``::
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 
 class ProgressLine(str):
@@ -86,7 +85,7 @@ class ProgressTracker:
 
     # -- API ------------------------------------------------------------
 
-    def tick(self, n: int = 1) -> Optional[ProgressLine]:
+    def tick(self, n: int = 1) -> ProgressLine | None:
         self.done += int(n)
         now = time.time()
         due = (self.done - self._last_emit_n >= self.every
@@ -98,7 +97,7 @@ class ProgressTracker:
         self._last_emit_n = self.done
         return self._line()
 
-    def resume_banner(self) -> Optional[str]:
+    def resume_banner(self) -> str | None:
         """'Resuming: N already done - M to go.' when prior work exists."""
         if not self.already_done:
             return None

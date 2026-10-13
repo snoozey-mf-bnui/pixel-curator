@@ -18,8 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple, List
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -33,12 +32,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "expression_intensity": 0.35,
     "expression_clarity": 0.30,
     "expression_aesthetic": 0.35,
@@ -48,13 +47,13 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
 @dataclass
 class ExpressionScores:
     """Container for expression quality metrics with serialization capabilities."""
-    expression_intensity: Optional[float] = None
-    expression_clarity: Optional[float] = None
-    expression_aesthetic: Optional[float] = None
-    overall_expression_score: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    expression_intensity: float | None = None
+    expression_clarity: float | None = None
+    expression_aesthetic: float | None = None
+    overall_expression_score: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -64,7 +63,7 @@ class ExpressionScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -75,7 +74,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _calculate_distance(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _calculate_distance(p1: Point | None, p2: Point | None) -> float:
     """Euclidean distance between two points."""
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
@@ -84,15 +83,15 @@ def _calculate_distance(p1: Optional[Point], p2: Optional[Point]) -> float:
 # --- Geometric & CV Estimation Helpers ---
 
 def estimate_expression_intensity(
-    left_eye: Optional[Point] = None,
-    right_eye: Optional[Point] = None,
-    mouth_top: Optional[Point] = None,
-    mouth_bottom: Optional[Point] = None,
-    mouth_left: Optional[Point] = None,
-    mouth_right: Optional[Point] = None,
-    left_brow: Optional[Point] = None,
-    right_brow: Optional[Point] = None,
-) -> Optional[float]:
+    left_eye: Point | None = None,
+    right_eye: Point | None = None,
+    mouth_top: Point | None = None,
+    mouth_bottom: Point | None = None,
+    mouth_left: Point | None = None,
+    mouth_right: Point | None = None,
+    left_brow: Point | None = None,
+    right_brow: Point | None = None,
+) -> float | None:
     """
     Estimates expression intensity based on facial landmark displacement.
     Normalized by interocular distance to be scale-invariant.
@@ -135,13 +134,13 @@ def estimate_expression_intensity(
 
 
 def estimate_expression_aesthetic(
-    left_eye: Optional[Point] = None,
-    right_eye: Optional[Point] = None,
-    mouth_left: Optional[Point] = None,
-    mouth_right: Optional[Point] = None,
-    left_brow: Optional[Point] = None,
-    right_brow: Optional[Point] = None,
-) -> Optional[float]:
+    left_eye: Point | None = None,
+    right_eye: Point | None = None,
+    mouth_left: Point | None = None,
+    mouth_right: Point | None = None,
+    left_brow: Point | None = None,
+    right_brow: Point | None = None,
+) -> float | None:
     """
     Estimates expression aesthetic based on facial symmetry.
     Higher symmetry often correlates with perceived aesthetic balance in expressions.
@@ -160,7 +159,7 @@ def estimate_expression_aesthetic(
     # Calculate horizontal asymmetry from the midline (normalized by IOD)
     mouth_asym = abs((mouth_left[0] - mid_x) + (mid_x - mouth_right[0])) / iod
     brow_asym = abs((left_brow[0] - mid_x) + (mid_x - right_brow[0])) / iod
-    
+
     # Also check vertical asymmetry (e.g., one eyebrow raised higher)
     brow_vert_asym = abs(left_brow[1] - right_brow[1]) / iod
 
@@ -172,7 +171,7 @@ def estimate_expression_aesthetic(
     return float(max(0.0, 1.0 - (total_asymmetry / 0.2)))
 
 
-def estimate_expression_clarity(image: np.ndarray, face_bbox: Optional[BBox]) -> Optional[float]:
+def estimate_expression_clarity(image: np.ndarray, face_bbox: BBox | None) -> float | None:
     """
     Estimates expression clarity via local face sharpness (Laplacian variance).
     Blurry faces have unreadable expressions.
@@ -200,10 +199,10 @@ def estimate_expression_clarity(image: np.ndarray, face_bbox: Optional[BBox]) ->
 # --- Main Logic ---
 
 def compute_overall_expression(
-    expression_intensity: Optional[float] = None,
-    expression_clarity: Optional[float] = None,
-    expression_aesthetic: Optional[float] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    expression_intensity: float | None = None,
+    expression_clarity: float | None = None,
+    expression_aesthetic: float | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> ExpressionScores:
     """
     Main function to compute expression quality from pre-computed signals.
@@ -245,10 +244,10 @@ def compute_overall_expression(
 
 
 def compute_expression_from_signals(
-    image: Optional[np.ndarray] = None,
-    face_bbox: Optional[BBox] = None,
-    landmarks: Optional[Dict[str, Point]] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    image: np.ndarray | None = None,
+    face_bbox: BBox | None = None,
+    landmarks: dict[str, Point] | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> ExpressionScores:
     """
     Convenience wrapper: Estimates all expression signals directly from image and landmarks.

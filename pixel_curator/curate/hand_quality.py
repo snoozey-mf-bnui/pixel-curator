@@ -18,8 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple, List
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -33,7 +32,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 # Standard MediaPipe Hand 21 Keypoint Indices
 # 0: Wrist
@@ -52,7 +51,7 @@ HAND_KEYPOINT_NAMES = [
 ]
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "geometric_integrity": 0.60,  # Bone ratios and joint angles
     "visibility": 0.40,           # Sharpness and presence in frame
 }
@@ -61,13 +60,13 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
 @dataclass
 class HandQualityScores:
     """Container for hand quality metrics with serialization capabilities."""
-    hand_quality: Optional[float] = None
-    has_deformed_hands: Optional[bool] = None
-    hand_visibility: Optional[float] = None
+    hand_quality: float | None = None
+    has_deformed_hands: bool | None = None
+    hand_visibility: float | None = None
     confidence: float = 0.0
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -77,7 +76,7 @@ class HandQualityScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -85,12 +84,12 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _dist(p1: Point | None, p2: Point | None) -> float:
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
-def _angle(p1: Optional[Point], p2: Optional[Point], p3: Optional[Point]) -> Optional[float]:
+def _angle(p1: Point | None, p2: Point | None, p3: Point | None) -> float | None:
     """Angle in degrees at p2 formed by p1-p2-p3."""
     if not p1 or not p2 or not p3: return None
     v1 = (p1[0] - p2[0], p1[1] - p2[1])
@@ -103,40 +102,40 @@ def _angle(p1: Optional[Point], p2: Optional[Point], p3: Optional[Point]) -> Opt
 
 # --- Geometric & CV Estimation Helpers ---
 
-def estimate_hand_visibility(image: np.ndarray, hand_bbox: Optional[Tuple[int, int, int, int]]) -> Optional[float]:
+def estimate_hand_visibility(image: np.ndarray, hand_bbox: tuple[int, int, int, int] | None) -> float | None:
     """Estimates hand visibility via Laplacian variance (blur detection)."""
     if not CV2_AVAILABLE or image is None or hand_bbox is None: return None
-    
+
     x1, y1, x2, y2 = hand_bbox
     h, w = image.shape[:2]
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)
     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
     if x2 <= x1 or y2 <= y1: return 0.0
-    
+
     crop = image[y1:y2, x1:x2]
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if len(crop.shape) == 3 else crop
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
-    
+
     # Hands have high detail. Normalize: 500+ variance is sharp.
     return float(min(1.0, sharpness / (sharpness + 500.0)))
 
 
-def estimate_geometric_integrity(keypoints: List[Point]) -> Tuple[bool, float]:
+def estimate_geometric_integrity(keypoints: list[Point]) -> tuple[bool, float]:
     """
     Evaluates if a hand is geometrically possible.
     Returns (is_deformed, integrity_score).
     """
     if len(keypoints) < 21:
         return True, 0.0  # Missing keypoints means we assume deformity/low quality
-        
+
     wrist = keypoints[0]
-    
+
     # 1. Check Finger Presence (Distance from wrist to tip)
     # If a finger tip is basically at the wrist, the finger is missing/clenched in a weird way
     palm_size = _dist(wrist, keypoints[9]) # Wrist to middle MCP
     if palm_size < 1e-6: return True, 0.0
-    
+
     finger_tips = [4, 8, 12, 16, 20]
     missing_fingers = 0
     for tip_idx in finger_tips:
@@ -144,7 +143,7 @@ def estimate_geometric_integrity(keypoints: List[Point]) -> Tuple[bool, float]:
             # Tip is too close to palm, likely missing or severely deformed
             # Note: This can trigger on a closed fist, but for generative AI it's a safe heuristic
             pass # We'll rely on bone ratios instead, as fists are valid.
-            
+
     # 2. Check Bone Ratios (Fingers should get progressively shorter)
     # Index: 5(MCP) -> 6(PIP) -> 7(DIP) -> 8(TIP)
     # Proximal (MCP-PIP) should be longest, Middle (PIP-DIP) shorter, Distal (DIP-TIP) shortest
@@ -155,16 +154,16 @@ def estimate_geometric_integrity(keypoints: List[Point]) -> Tuple[bool, float]:
         [13, 14, 15, 16],# Ring
         [17, 18, 19, 20] # Pinky
     ]
-    
+
     for f in fingers:
         b1 = _dist(keypoints[f[0]], keypoints[f[1]])
         b2 = _dist(keypoints[f[1]], keypoints[f[2]])
         b3 = _dist(keypoints[f[2]], keypoints[f[3]])
-        
+
         # If a distal bone is longer than a proximal bone, it's highly unnatural
         if b3 > b2 * 1.2 or b2 > b1 * 1.2:
             bone_deformities += 1
-            
+
     # 3. Check Joint Angles (Fingers shouldn't bend backward > ~10 degrees)
     joint_deformities = 0
     for f in fingers:
@@ -172,28 +171,28 @@ def estimate_geometric_integrity(keypoints: List[Point]) -> Tuple[bool, float]:
         pip_angle = _angle(keypoints[f[0]], keypoints[f[1]], keypoints[f[2]])
         # Angle at DIP (f[2])
         dip_angle = _angle(keypoints[f[1]], keypoints[f[2]], keypoints[f[3]])
-        
+
         # 180 degrees is straight. < 170 means bent forward (normal).
         # > 185 means bent backward (impossible / broken).
         if (pip_angle and pip_angle > 185) or (dip_angle and dip_angle > 185):
             joint_deformities += 1
 
     total_deformities = bone_deformities + joint_deformities
-    
+
     # Score calculation: 0 deformities = 1.0. 4+ deformities = 0.0.
     integrity = max(0.0, 1.0 - (total_deformities * 0.25))
     is_deformed = total_deformities > 0
-    
+
     return is_deformed, integrity
 
 
 # --- Main Logic ---
 
 def evaluate_hand_quality(
-    hand_quality: Optional[float] = None,
-    has_deformed_hands: Optional[bool] = None,
-    hand_visibility: Optional[float] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    hand_quality: float | None = None,
+    has_deformed_hands: bool | None = None,
+    hand_visibility: float | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> HandQualityScores:
     """
     Main function to compute hand quality from pre-computed signals.
@@ -252,10 +251,10 @@ def evaluate_hand_quality(
 
 
 def evaluate_hand_from_keypoints(
-    keypoints: Optional[List[Point]] = None,
-    image: Optional[np.ndarray] = None,
-    hand_bbox: Optional[Tuple[int, int, int, int]] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    keypoints: list[Point] | None = None,
+    image: np.ndarray | None = None,
+    hand_bbox: tuple[int, int, int, int] | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> HandQualityScores:
     """
     Convenience wrapper: Estimates deformities and visibility directly from 
@@ -267,7 +266,7 @@ def evaluate_hand_from_keypoints(
 
     if keypoints and len(keypoints) == 21:
         is_deformed, geometric_score = estimate_geometric_integrity(keypoints)
-        
+
     if image is not None and hand_bbox is not None:
         visibility = estimate_hand_visibility(image, hand_bbox)
 
@@ -277,7 +276,7 @@ def evaluate_hand_from_keypoints(
         hand_visibility=visibility,
         weights=weights
     )
-    
+
     # If we calculated geometric integrity, override the generic hand_quality score
     # with the specific geometric + visibility blend for better accuracy
     if geometric_score is not None:
@@ -285,7 +284,7 @@ def evaluate_hand_from_keypoints(
                               ((visibility or 0.0) * weights.get("visibility", 0.4))
         if is_deformed:
             scores.hand_quality = min(0.3, scores.hand_quality)
-            
+
     return scores
 
 
@@ -321,7 +320,7 @@ if __name__ == "__main__":
     x_starts = [150, 170, 190, 210]
     for x in x_starts:
         perfect_kps += [(x, 150), (x, 110), (x, 80), (x, 60)]
-        
+
     good_scores = evaluate_hand_from_keypoints(keypoints=perfect_kps)
     print(f"   Deformed: {good_scores.has_deformed_hands} (Should be False)")
     print(f"   Quality: {good_scores.hand_quality:.4f} (Should be 1.0)\n")
@@ -330,12 +329,12 @@ if __name__ == "__main__":
     # Simulating an AI hand where the index finger's distal bone is longer than the proximal bone
     broken_kps = perfect_kps.copy()
     # Index PIP (6) to DIP (7) is 30px. Let's make DIP (7) to TIP (8) 80px (impossible)
-    broken_kps[8] = (broken_kps[7][0], broken_kps[7][1] - 80) 
+    broken_kps[8] = (broken_kps[7][0], broken_kps[7][1] - 80)
     # Also make middle finger bend backward at PIP (angle > 185)
     broken_kps[9] = (170, 150)
     broken_kps[10] = (170, 190) # PIP bends backward down
     broken_kps[11] = (170, 110)
-    
+
     bad_scores = evaluate_hand_from_keypoints(keypoints=broken_kps)
     print(f"   Deformed: {bad_scores.has_deformed_hands} (Should be True)")
     print(f"   Quality: {bad_scores.hand_quality:.4f} (Should be low / capped)")

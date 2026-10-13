@@ -17,12 +17,10 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from ..eval.forge_api import ForgeClient
 from ..lora_validator import normalize_stack_text, validate_lora_stack
-from .generation_log import (add_generation_to_log, build_sample_metadata,
-                             identity_anchor_hash)
+from .generation_log import add_generation_to_log, build_sample_metadata, identity_anchor_hash
 from .generation_mode import resolve_generation_mode
 
 log = logging.getLogger("redresser.orchestrator")
@@ -49,10 +47,10 @@ class RedresserPipelineOrchestrator:
         self.enable_dataset_log = bool(enable_dataset_log)
         self.dataset_name = dataset_name
         self.dry_run = bool(dry_run)
-        self._client: Optional[ForgeClient] = None
+        self._client: ForgeClient | None = None
 
     # -- helpers -------------------------------------------------------------
-    def _forge(self) -> Optional[ForgeClient]:
+    def _forge(self) -> ForgeClient | None:
         if self._client is None:
             self._client = ForgeClient(self.forge_url)
         return self._client
@@ -429,8 +427,7 @@ class RedresserPipelineOrchestrator:
 
     def _run_production(self, result, src, cleaned, preset, run_dir, backend,
                         quality_preset, threshold, enable_quality):
-        from .production_quality import (ProductionQualityEnhancer,
-                                         evaluate_output_quality)
+        from .production_quality import ProductionQualityEnhancer, evaluate_output_quality
         base = self._build_payload(cleaned, preset)
         if enable_quality:
             caps = {}

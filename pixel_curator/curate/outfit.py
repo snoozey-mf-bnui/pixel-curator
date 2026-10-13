@@ -14,10 +14,12 @@ than running another model.
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
-from typing import Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # coarse named palette (RGB anchors) - clothing-relevant colours
 _PALETTE = {
@@ -134,6 +136,7 @@ def _parse_bbox(raw, w, h):
         if len(b) == 4:
             return [b[0] * w, b[1] * h, b[2] * w, b[3] * h]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return None
 
@@ -146,6 +149,7 @@ def _default_load(path):
         rgb = exif_normalized_rgb(path)
         return np.asarray(rgb) if rgb is not None else None
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 

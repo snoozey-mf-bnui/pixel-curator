@@ -20,15 +20,16 @@ into the export (never moves or edits the source). Pure stdlib.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-from .. import manifest
 from ..config import Project
 from ..util import now_iso
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ from ..util import now_iso
 @dataclass
 class DreamBoothExportConfig:
     output_base: Path
-    out_dir: Optional[Path] = None          # default: <output_base>/dreambooth_exports/<token>
+    out_dir: Path | None = None          # default: <output_base>/dreambooth_exports/<token>
     token: str = "spikbnu"
     class_word: str = "person"
     count: int = 1000                        # instance images to select
@@ -57,9 +58,9 @@ class DreamBoothExportConfig:
                                              # beside the export (suggestion only)
     # Lineage mode: reproduce the EXACT training set of a known LoRA. When set,
     # frames + captions come verbatim from that dataset build (no re-selection).
-    dataset_version: Optional[int] = None
-    from_run: Optional[str] = None           # resolve dataset_version from runs.name
-    from_recipe: Optional[str] = None        # resolve dataset_version from datasets.recipe_name
+    dataset_version: int | None = None
+    from_run: str | None = None           # resolve dataset_version from runs.name
+    from_recipe: str | None = None        # resolve dataset_version from datasets.recipe_name
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +217,7 @@ def select_instance_frames(conn, count: int, *, diversity: bool = True,
     return ranked[:count]
 
 
-def resolve_run_dataset(conn, run_name: str) -> Optional[int]:
+def resolve_run_dataset(conn, run_name: str) -> int | None:
     """Map a training run name to the dataset version it trained on."""
     for sql, arg in (("SELECT dataset_version FROM runs WHERE name = ? "
                       "ORDER BY run_id DESC LIMIT 1", run_name),
@@ -225,13 +226,14 @@ def resolve_run_dataset(conn, run_name: str) -> Optional[int]:
         try:
             row = conn.execute(sql, (arg,)).fetchone()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
         if row and row[0] is not None:
             return int(row[0])
     return None
 
 
-def resolve_recipe_dataset(conn, recipe_name: str) -> Optional[int]:
+def resolve_recipe_dataset(conn, recipe_name: str) -> int | None:
     """Map a build recipe name to its most recent dataset version. Use this to
     export a built-but-not-yet-trained dataset (before any run exists)."""
     for sql, arg in (("SELECT version FROM datasets WHERE recipe_name = ? "
@@ -241,6 +243,7 @@ def resolve_recipe_dataset(conn, recipe_name: str) -> Optional[int]:
         try:
             row = conn.execute(sql, (arg,)).fetchone()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
         if row and row[0] is not None:
             return int(row[0])
@@ -274,6 +277,7 @@ def dataset_lineage(conn, version: int) -> dict:
             "SELECT name FROM runs WHERE dataset_version = ? ORDER BY run_id",
             (version,)).fetchall()]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return {"version": version,
             "recipe": row[0] if row else None,
@@ -348,7 +352,7 @@ def plan_dreambooth_export(conn, prj: Project, cfg: DreamBoothExportConfig) -> d
         exact = True
     elif cfg.diverse:
         # full diversity curator: cap per session + scene, balance framing
-        from ..diverse import fetch_candidates, diverse_select
+        from ..diverse import diverse_select, fetch_candidates
         cands = fetch_candidates(conn)
         try:
             caps = dict(conn.execute(
@@ -459,6 +463,7 @@ def plan_dreambooth_export(conn, prj: Project, cfg: DreamBoothExportConfig) -> d
             try:
                 dst.unlink()
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
         if _link(src, dst, cfg.link_mode, warnings):
             copied += 1

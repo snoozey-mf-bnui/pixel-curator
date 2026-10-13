@@ -35,10 +35,10 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
 
 from .util import now_iso
 
@@ -175,7 +175,7 @@ def detect_orphan_rows(conn) -> list[LintIssue]:
     return out
 
 
-def detect_missing_files(conn, path_exists: Optional[Callable] = None,
+def detect_missing_files(conn, path_exists: Callable | None = None,
                          limit: int = 2000) -> list[LintIssue]:
     exists = path_exists or (lambda p: Path(p).exists())
     out: list[LintIssue] = []
@@ -249,7 +249,7 @@ def detect_low_identity_outliers(conn, threshold: float = 0.30,
                         "auto-fixed") for r in rows]
 
 
-def run_lint(conn, path_exists: Optional[Callable] = None) -> list[LintIssue]:
+def run_lint(conn, path_exists: Callable | None = None) -> list[LintIssue]:
     """All detectors; each degrades independently on older schemas."""
     issues: list[LintIssue] = []
     for det in (detect_caption_contradictions, detect_caption_duplicate_tags,
@@ -279,7 +279,7 @@ def _snapshot_caption(conn, frame_id: str, caption: str) -> None:
 
 
 def apply_fixes(conn, issues: list[LintIssue], output_base: Path | str,
-                only: Optional[set[str]] = None) -> dict:
+                only: set[str] | None = None) -> dict:
     """Apply the safe fixes for AUTO-FIXABLE issues. Returns a summary with
     the journal path. Every change is recorded with its prior state so
     `undo_fixes(journal)` restores it exactly."""
@@ -322,13 +322,13 @@ def apply_fixes(conn, issues: list[LintIssue], output_base: Path | str,
             "journal": str(journal_path) if journal_path else None}
 
 
-def _current_caption(conn, frame_id: str) -> Optional[str]:
+def _current_caption(conn, frame_id: str) -> str | None:
     row = conn.execute("SELECT caption_text FROM captions WHERE frame_id=?",
                        (frame_id,)).fetchone()
     return row[0] if row else None
 
 
-def _apply_one(conn, issue: LintIssue) -> Optional[dict]:
+def _apply_one(conn, issue: LintIssue) -> dict | None:
     p = issue.payload
     # Caption fixes re-read the CURRENT caption at apply time (not the
     # detection-time payload) so multiple fixers touching the same frame

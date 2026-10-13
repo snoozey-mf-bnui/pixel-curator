@@ -14,13 +14,16 @@ dependencies.
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from . import manifest
 from .config import Project
 from .util import now_iso, setup_logging
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Vocabulary - caption-signal lexicons (WD14 tag vocabulary -> study signals)
@@ -85,7 +88,7 @@ class StudyConfig:
     batch: int = 500               # commit cadence
 
 
-def _caption_tokens(caption: Optional[str], tags_json: Optional[str]) -> set:
+def _caption_tokens(caption: str | None, tags_json: str | None) -> set:
     toks: set = set()
     if caption:
         toks.update(t.strip().lower().replace(" ", "_")
@@ -94,6 +97,7 @@ def _caption_tokens(caption: Optional[str], tags_json: Optional[str]) -> set:
         try:
             toks.update(str(t).lower() for t in json.loads(tags_json))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return toks
 
@@ -209,6 +213,7 @@ def classify_frame(row: dict) -> dict:
             for k, v in (hook(row) or {}).items():
                 scores[k] = _clamp(float(v))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     export_eligible = int(confidence >= EXPORT_FLOOR
@@ -450,7 +455,7 @@ STACK_MODES: dict[str, dict] = {
 }
 
 
-def suggest_study_stack(mode: str, base_model: Optional[str] = None) -> dict:
+def suggest_study_stack(mode: str, base_model: str | None = None) -> dict:
     """Stack recommendation for a study production mode: which LoRAs to
     load, weights, merge order, block weights, and conflict warnings."""
     from .base_models import blocks_string, detect_profile
@@ -532,8 +537,8 @@ _PRESET_TEMPLATES: list[tuple[str, str, str, str]] = [
 ]
 
 
-def write_study_presets(prj: Project, path: Optional[Path] = None,
-                        loras: Optional[list] = None) -> Path:
+def write_study_presets(prj: Project, path: Path | None = None,
+                        loras: list | None = None) -> Path:
     """Write the study preset pack for the project's base model profile."""
     from .base_models import detect_profile, preset_payload
     prof = detect_profile(prj.base_model)
@@ -545,6 +550,7 @@ def write_study_presets(prj: Project, path: Optional[Path] = None,
     try:
         presets = json.loads(target.read_text())
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     for name, study, tail, qa in _PRESET_TEMPLATES:
         body = preset_payload(prof, trig, base_model=prj.base_model,

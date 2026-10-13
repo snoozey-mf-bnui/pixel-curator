@@ -17,14 +17,16 @@ from __future__ import annotations
 
 import csv
 import html
-import json
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Optional
 
-from .general import (EXCLUDED_STATUS_PREFIXES, iter_frame_records,
-                      _unified_scores, select_records, select_records_balanced)
+from .general import (
+    _unified_scores,
+    iter_frame_records,
+    select_records,
+    select_records_balanced,
+)
 
 log = logging.getLogger("pixel_curator.export.review")
 
@@ -91,8 +93,8 @@ def _card(rec: dict) -> str:
 
 
 def build_review_report(conn, out_dir: Path | str,
-                        top_pct: Optional[float] = None,
-                        min_score: Optional[float] = None,
+                        top_pct: float | None = None,
+                        min_score: float | None = None,
                         balanced: int = 0,
                         max_cards: int = 2000) -> dict:
     """Write index.html + review_sheet.csv for the selected frame set

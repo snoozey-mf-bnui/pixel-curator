@@ -10,16 +10,25 @@ import logging
 import os
 import shutil
 import sqlite3
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import DB_NAME, LOG_NAME, ExtractConfig, PrefilterConfig
 from .util import (
-    check_dependencies, discover_photos, discover_videos, ffmpeg_has_filter,
-    ffmpeg_vsync_args, human_bytes, parse_fps, run_cmd, safe_slug,
-    setup_logging, stable_id, which,
+    check_dependencies,
+    discover_photos,
+    discover_videos,
+    ffmpeg_has_filter,
+    ffmpeg_vsync_args,
+    human_bytes,
+    parse_fps,
+    run_cmd,
+    safe_slug,
+    setup_logging,
+    stable_id,
+    which,
 )
 
 
@@ -28,14 +37,14 @@ class VideoMeta:
     path: Path
     duration: float
     size_bytes: int
-    width: Optional[int]
-    height: Optional[int]
-    fps: Optional[float]
-    codec: Optional[str]
-    pix_fmt: Optional[str]
-    color_transfer: Optional[str]
-    color_primaries: Optional[str]
-    color_space: Optional[str]
+    width: int | None
+    height: int | None
+    fps: float | None
+    codec: str | None
+    pix_fmt: str | None
+    color_transfer: str | None
+    color_primaries: str | None
+    color_space: str | None
     is_hdr: bool
 
 
@@ -411,7 +420,7 @@ def import_one_photo(
     mode: str,
     resume: bool,
     dry_run: bool,
-    prefilter_cfg: Optional[PrefilterConfig] = None,
+    prefilter_cfg: PrefilterConfig | None = None,
 ) -> str:
     sid = manifest.upsert_source(conn, photo_path, "photo")
     status = manifest.get_status(conn, sid)

@@ -25,15 +25,18 @@ touched.
 from __future__ import annotations
 
 import json
+import logging
 import time
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import PrefilterConfig
 from .curate.basic import laplacian_variance, load_gray
 from .util import HAVE_PIL, now_iso, setup_logging
+
+logger = logging.getLogger(__name__)
 
 if HAVE_PIL:
     from PIL import Image
@@ -58,7 +61,7 @@ _BAND_MEAN_DELTA = 40.0   # strip must sit on a distinctly dark/bright bar
 # Zero-decode checks (stat + header only)
 # ---------------------------------------------------------------------------
 
-def check_file_size(path: Path, min_bytes: int) -> Optional[str]:
+def check_file_size(path: Path, min_bytes: int) -> str | None:
     try:
         if path.stat().st_size < min_bytes:
             return "tiny_file"
@@ -67,7 +70,7 @@ def check_file_size(path: Path, min_bytes: int) -> Optional[str]:
     return None
 
 
-def _header_size(path: Path) -> Optional[tuple[int, int]]:
+def _header_size(path: Path) -> tuple[int, int] | None:
     """(width, height) from the image header - PIL lazy open, no pixel
     decode. None when the header itself is unreadable."""
     if not HAVE_PIL:
@@ -76,11 +79,12 @@ def _header_size(path: Path) -> Optional[tuple[int, int]]:
         with Image.open(path) as im:
             return int(im.size[0]), int(im.size[1])
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
 def check_resolution(path: Path, min_side: int,
-                     size: Optional[tuple[int, int]] = None) -> Optional[str]:
+                     size: tuple[int, int] | None = None) -> str | None:
     size = size if size is not None else _header_size(path)
     if size is None:
         return None                     # header trouble handled elsewhere
@@ -90,7 +94,7 @@ def check_resolution(path: Path, min_side: int,
 
 
 def check_compression(path: Path, min_bpp: float,
-                      size: Optional[tuple[int, int]] = None) -> Optional[str]:
+                      size: tuple[int, int] | None = None) -> str | None:
     """Bytes-per-pixel floor for lossy formats. A quality-2 ffmpeg JPEG runs
     ~0.5-1.5 bpp; social-media re-compression mush sits under ~0.05."""
     if path.suffix.lower() not in _BPP_EXTS or min_bpp <= 0:
@@ -110,7 +114,7 @@ def check_compression(path: Path, min_bpp: float,
     return None
 
 
-def check_truncation(path: Path) -> Optional[str]:
+def check_truncation(path: Path) -> str | None:
     """JPEG files end in the EOI marker FFD9; a missing tail means the
     download/copy was cut short. Two-byte read, no decode."""
     if path.suffix.lower() not in _JPEG_EXTS:
@@ -127,7 +131,7 @@ def check_truncation(path: Path) -> Optional[str]:
     return None
 
 
-def prefilter_path(path, cfg: PrefilterConfig) -> Optional[str]:
+def prefilter_path(path, cfg: PrefilterConfig) -> str | None:
     """Zero-decode battery. Returns the first rejection reason or None.
     Never raises."""
     path = Path(str(path))
@@ -198,7 +202,7 @@ def detect_text_band(gray: list[int], w: int = 96, h: int = 96) -> bool:
 
 
 def prefilter_decode(path, cfg: PrefilterConfig,
-                     gray: Optional[list[int]] = None) -> Optional[str]:
+                     gray: list[int] | None = None) -> str | None:
     """Decode-tier battery. Accepts an already-loaded 96x96 gray so callers
     that decoded anyway (curate scoring) pay nothing extra. Never raises."""
     if gray is None:
@@ -224,7 +228,7 @@ def mark_rejected(conn, frame_id: str, reason: str) -> None:
     )
 
 
-def restore_prefiltered(conn, reason: Optional[str] = None) -> int:
+def restore_prefiltered(conn, reason: str | None = None) -> int:
     """Flip prefilter-rejected frames back to 'new' (optionally only one
     reason) so they re-enter curation. Returns the restored count."""
     if reason:
@@ -248,7 +252,7 @@ def prefilter_summary(conn) -> dict:
 
 
 def _write_report(output_base: Path, entries: list[dict],
-                  counts: dict, dry_run: bool) -> Optional[Path]:
+                  counts: dict, dry_run: bool) -> Path | None:
     """Reviewable JSON report of one prefilter run. Never raises."""
     try:
         rep_dir = Path(output_base) / "prefilter_reports"
@@ -265,6 +269,7 @@ def _write_report(output_base: Path, entries: list[dict],
         }, indent=2), encoding="utf-8")
         return path
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -295,7 +300,7 @@ def prefilter_generator(cfg: PrefilterConfig) -> Generator[str, None, None]:
            + (f" | text bands | blur<{cfg.extreme_blur}"
               if cfg.decode_checks else "") + "\n")
 
-    def _check(path_str: str) -> Optional[str]:
+    def _check(path_str: str) -> str | None:
         p = Path(path_str)
         reason = prefilter_path(p, cfg)
         if reason is None and cfg.decode_checks:

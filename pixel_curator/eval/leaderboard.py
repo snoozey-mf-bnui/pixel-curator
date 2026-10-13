@@ -13,16 +13,15 @@ and cheap. Pairs naturally with eval.likeness, which populates evals.likeness.
 from __future__ import annotations
 
 import sqlite3
-from typing import Optional
 
 
-def _mean(xs) -> Optional[float]:
+def _mean(xs) -> float | None:
     xs = [x for x in xs if x is not None]
     return round(sum(xs) / len(xs), 4) if xs else None
 
 
 def candidate_labels(conn: sqlite3.Connection,
-                     labels: Optional[list] = None) -> list[str]:
+                     labels: list | None = None) -> list[str]:
     rows = conn.execute(
         "SELECT DISTINCT label FROM evals WHERE label IS NOT NULL "
         "AND TRIM(label) <> ''").fetchall()
@@ -43,7 +42,7 @@ def _load_rows(conn: sqlite3.Connection, labels: list[str]) -> list[tuple]:
 
 
 def build_leaderboard(conn: sqlite3.Connection, *,
-                      labels: Optional[list] = None) -> dict:
+                      labels: list | None = None) -> dict:
     """Rank candidates. Headline metric is mean likeness on the set of
     (category, seed) prompt cells shared by all candidates; overall mean is
     also reported. Returns a structured board (read-only)."""

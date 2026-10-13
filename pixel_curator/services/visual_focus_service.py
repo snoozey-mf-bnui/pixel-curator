@@ -8,11 +8,13 @@ Read-only on source media; depends only on the core classifier + stdlib.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
 
 from ..curate import visual_focus_classifier as vfc
+
+logger = logging.getLogger(__name__)
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".heic", ".heif")
 RESULTS_NAME = "visual_focus_results.jsonl"
@@ -20,7 +22,7 @@ SUMMARY_NAME = "visual_focus_summary.json"
 CARD_NAME = "visual_focus_card.md"
 
 
-def _iter_images(dataset_dir: Path, limit: Optional[int]):
+def _iter_images(dataset_dir: Path, limit: int | None):
     n = 0
     for p in sorted(dataset_dir.rglob("*")):
         if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
@@ -31,8 +33,8 @@ def _iter_images(dataset_dir: Path, limit: Optional[int]):
 
 
 def classify_dataset_visual_focus(dataset_dir, output_dir=None,
-                                  config: Optional[vfc.VisualFocusConfig] = None,
-                                  limit: Optional[int] = None) -> dict:
+                                  config: vfc.VisualFocusConfig | None = None,
+                                  limit: int | None = None) -> dict:
     """Classify every image under ``dataset_dir`` (recursive, capped by
     ``limit``). Writes results JSONL + summary + card to ``output_dir`` (default:
     ``dataset_dir``). Resumable. Returns the summary dict. Never raises for
@@ -82,6 +84,7 @@ def load_visual_focus_results(results_path) -> list:
             if line.strip():
                 out.append(json.loads(line))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 

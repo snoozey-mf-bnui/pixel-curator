@@ -11,7 +11,6 @@ import base64
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 
 class ForgeClient:
@@ -92,7 +91,7 @@ class ForgeClient:
     def extra_single_image(self, png_bytes: bytes, *, upscale: bool = True,
                            scale: float = 4.0, upscaler: str = "",
                            gfpgan_visibility: float = 0.0,
-                           tile: Optional[int] = 0,
+                           tile: int | None = 0,
                            upscale_first: bool = True) -> bytes:
         """Post-process one image through Forge's built-in extras pipeline:
         RealESRGAN upscaling and/or GFPGAN face restoration. Mirrors the
@@ -216,10 +215,10 @@ class ForgeClient:
                               cfg: float = 6.0, width: int = 1024,
                               height: int = 1024, seed: int = 42,
                               sampler: str = "DPM++ 2M Karras",
-                              loras: Optional[list[tuple[str, float]]] = None,
+                              loras: list[tuple[str, float]] | None = None,
                               hires: bool = False, clip_skip: int = 0,
                               checkpoint: str = "",
-                              controlnet_units: Optional[list[dict]] = None
+                              controlnet_units: list[dict] | None = None
                               ) -> dict:
         payload = {
             "prompt": ForgeClient.lora_prompt(prompt, loras or []),
@@ -270,8 +269,8 @@ class ForgeClient:
                 negative: str = "", denoise: float = 0.45,
                 mask_blur: int = 16, steps: int = 28, cfg: float = 6.0,
                 seed: int = 42, sampler: str = "DPM++ 2M Karras",
-                loras: Optional[list[tuple[str, float]]] = None,
-                controlnet_units: Optional[list[dict]] = None,
+                loras: list[tuple[str, float]] | None = None,
+                controlnet_units: list[dict] | None = None,
                 clip_skip: int = 0, checkpoint: str = "",
                 inpaint_full_res: bool = True) -> bytes:
         """Region-aware inpainting: regenerate only the masked area
@@ -309,9 +308,9 @@ class ForgeClient:
     def img2img(self, init_png: bytes, prompt: str, negative: str = "",
                 strength: float = 0.6, steps: int = 28, cfg: float = 6.0,
                 seed: int = 42, sampler: str = "DPM++ 2M Karras",
-                loras: Optional[list[tuple[str, float]]] = None,
-                resize_mode: int = 0, width: Optional[int] = None,
-                height: Optional[int] = None, clip_skip: int = 0,
+                loras: list[tuple[str, float]] | None = None,
+                resize_mode: int = 0, width: int | None = None,
+                height: int | None = None, clip_skip: int = 0,
                 checkpoint: str = "") -> bytes:
         """Image-to-image: regenerate `init_png` under `strength` denoising,
         honoring the LoRA stack. clip_skip/checkpoint pin the exact Forge
@@ -348,11 +347,11 @@ MOTION_TYPES = ("catalog_turntable", "garment_detail_reveal",
 
 def build_animatediff_payload(prompt: str, negative_prompt: str = "",
                               init_image_path=None,
-                              controlnet_units: Optional[list[dict]] = None,
-                              ip_adapter_units: Optional[list[dict]] = None,
+                              controlnet_units: list[dict] | None = None,
+                              ip_adapter_units: list[dict] | None = None,
                               num_frames: int = 8, fps: int = 12,
                               motion_type: str = "catalog_turntable",
-                              seed: Optional[int] = None, steps: int = 26,
+                              seed: int | None = None, steps: int = 26,
                               cfg: float = 6.0, width: int = 896,
                               height: int = 1152,
                               sampler: str = "DPM++ 2M Karras",
@@ -470,6 +469,7 @@ def region_mask_png(init_png: bytes, region: str) -> bytes:
     (key of ForgeClient.REGION_PRESETS), sized to the init image. White =
     the area to inpaint. Requires Pillow (present in the Forge venv)."""
     import io
+
     from PIL import Image, ImageDraw
     preset = ForgeClient.REGION_PRESETS.get(region)
     if not preset:

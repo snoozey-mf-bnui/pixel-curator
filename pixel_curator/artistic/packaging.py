@@ -15,16 +15,17 @@ never moved.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from .review import (export_review, find_batch_dir, load_batch_manifest,
-                     review_summary, select_best_figure_study_variant)
+logger = logging.getLogger(__name__)
+
+from .review import export_review, find_batch_dir, load_batch_manifest
 
 
-def _selected_prompts(plan: dict, best_id: Optional[str],
+def _selected_prompts(plan: dict, best_id: str | None,
                       review: dict) -> list[dict]:
     """Prompts for selected/strong items; falls back to the best
     variant, then to every generation item."""
@@ -73,6 +74,7 @@ def _recommended_stack(plan: dict, conn=None, prj=None) -> dict:
             from .stack_recommender import recommend_best_epoch_and_stack
             return recommend_best_epoch_and_stack(conn, prj, "")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     try:
         from .stack_recommender import recommend_figure_study_stack

@@ -3,7 +3,10 @@ orientation check.  Pure stdlib SQL over the manifest; pre-build QA."""
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
+
+logger = logging.getLogger(__name__)
 
 
 def dataset_health(conn) -> dict:
@@ -122,10 +125,11 @@ def check_orientation(image_path):
     longer misfires on EXIF-tagged or tilted faces the way the old cv2 path did."""
     try:
         import numpy as np
-        from PIL import Image, ImageOps
         from insightface.app import FaceAnalysis
+        from PIL import Image, ImageOps
+
         from .identity_integration import _SWAPPER
-        from .orient import decide_rotation, OrientConfig
+        from .orient import OrientConfig, decide_rotation
         if _SWAPPER["app"] is None:
             _SWAPPER["app"] = FaceAnalysis(name="buffalo_l", providers=_rt_providers())
             _SWAPPER["app"].prepare(ctx_id=0, det_size=(640, 640))
@@ -139,6 +143,7 @@ def check_orientation(image_path):
                                  OrientConfig())
         return rot
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -161,12 +166,14 @@ def global_search(conn, prj, q: str, limit: int = 6) -> dict:
             "SELECT batch_id FROM variation_batches WHERE batch_id LIKE ? "
             "LIMIT ?", (like, limit))]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     try:
         from .lora_explorer import filter_cards, scan_loras_cached
         out["loras"] = [c.lora_id for c in filter_cards(
             scan_loras_cached(prj), search=q)][:limit]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 
@@ -176,6 +183,7 @@ def log_stack_history(conn, summary: dict, keep: int = 100) -> None:
     stack_history in the presets store), pruned to the newest `keep`."""
     import time
     import uuid
+
     from .concept_control import save_preset
     save_preset(conn, f"hist_{time.strftime('%Y%m%d_%H%M%S')}_"
                       f"{uuid.uuid4().hex[:6]}",
@@ -212,6 +220,7 @@ try:                                    # register as an optional probe
     _SH.setdefault("aesthetic_proxy",
                    lambda row: {"aesthetic_score": aesthetic_proxy(row)})
 except Exception:
+    logger.debug("suppressed exception", exc_info=True)
     pass
 
 

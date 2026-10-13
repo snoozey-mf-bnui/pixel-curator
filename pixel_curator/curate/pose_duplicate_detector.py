@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Canonical keypoint ordering used to build a translation/scale-invariant
 # signature vector. Missing joints are stored as the sentinel below.
@@ -139,6 +141,7 @@ def _extract_keypoints(sample: dict):
                 try:
                     out[str(name)] = (float(pt[0]), float(pt[1]))
                 except Exception:
+                    logger.debug("suppressed exception", exc_info=True)
                     continue
             if out:
                 return out
@@ -150,6 +153,7 @@ def _extract_keypoints(sample: dict):
                 try:
                     out[KP_ORDER[i]] = (float(p[0]), float(p[1]))
                 except Exception:
+                    logger.debug("suppressed exception", exc_info=True)
                     continue
             if out:
                 return out

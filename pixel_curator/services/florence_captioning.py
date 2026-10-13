@@ -4,6 +4,7 @@ Florence-2 runs as an OPTIONAL external VLM backend in a dedicated Python
 environment (default: the ``lora-vlm`` conda env), invoked via subprocess. This
 module is import-safe: it NEVER imports torch / transformers / Florence code at
 import time, and never loads a model on its own - it only builds payloads, shells
+
 out to ``florence2_runner``, reads structured JSON back, and post-processes the
 natural-language caption into professional, SFW dataset metadata.
 
@@ -15,15 +16,17 @@ content (Florence output is sanitized).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
-import sys
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_VLM_PYTHON = ("/opt/homebrew/Caskroom/miniconda/base/envs/"
@@ -100,14 +103,14 @@ class FlorenceCaptionResult:
 
 
 # ============================ runtime / paths ===============================
-def default_florence_model_paths(project_root: Optional[Path] = None) -> dict:
+def default_florence_model_paths(project_root: Path | None = None) -> dict:
     root = Path(project_root).expanduser() if project_root else REPO_ROOT
     base = root / "models" / "vlm" / "florence2"
     return {"base-ft": str(base / "Florence-2-base-ft"),
             "large-ft": str(base / "Florence-2-large-ft")}
 
 
-def _resolve_python(cfg: FlorenceRuntimeConfig) -> Optional[str]:
+def _resolve_python(cfg: FlorenceRuntimeConfig) -> str | None:
     cands = [cfg.python_executable, *_ALT_VLM_PYTHONS]
     for c in cands:
         if c and os.path.exists(c):
@@ -116,15 +119,15 @@ def _resolve_python(cfg: FlorenceRuntimeConfig) -> Optional[str]:
 
 
 def resolve_model_path(cfg: FlorenceRuntimeConfig,
-                       project_root: Optional[Path] = None) -> str:
+                       project_root: Path | None = None) -> str:
     if cfg.model_path:
         return str(Path(cfg.model_path).expanduser())
     paths = default_florence_model_paths(project_root)
     return paths.get(cfg.model_variant, paths.get("base-ft", ""))
 
 
-def detect_florence_runtime(config: Optional[FlorenceRuntimeConfig] = None,
-                            project_root: Optional[Path] = None) -> dict:
+def detect_florence_runtime(config: FlorenceRuntimeConfig | None = None,
+                            project_root: Path | None = None) -> dict:
     """Report readiness without importing or loading anything heavy. Never
     raises."""
     cfg = config or FlorenceRuntimeConfig()
@@ -152,7 +155,7 @@ def detect_florence_runtime(config: Optional[FlorenceRuntimeConfig] = None,
 
 def build_florence_subprocess_payload(request: FlorenceCaptionRequest,
                                       config: FlorenceRuntimeConfig,
-                                      project_root: Optional[Path] = None) -> dict:
+                                      project_root: Path | None = None) -> dict:
     task = request.task_prompt if request.task_prompt in VALID_TASK_PROMPTS \
         else "<MORE_DETAILED_CAPTION>"
     return {
@@ -215,7 +218,7 @@ def _first_match(text_low: str, rules, default="unknown") -> str:
 
 
 def extract_visual_attributes(caption: str,
-                              existing_metadata: Optional[dict] = None) -> dict:
+                              existing_metadata: dict | None = None) -> dict:
     """Rule-based, SFW extraction of structured attributes from a Florence
     natural caption + existing quality metadata. Never infers age/identity."""
     md = existing_metadata or {}
@@ -320,8 +323,8 @@ def _error_result(request, cfg, msg, warnings=None) -> FlorenceCaptionResult:
 
 # ============================ run (subprocess) ==============================
 def run_florence_caption(request: FlorenceCaptionRequest,
-                         config: Optional[FlorenceRuntimeConfig] = None,
-                         project_root: Optional[Path] = None
+                         config: FlorenceRuntimeConfig | None = None,
+                         project_root: Path | None = None
                          ) -> FlorenceCaptionResult:
     """Caption one image via the external runner. Never raises; returns a clean
     error result when Florence is unavailable."""
@@ -368,12 +371,13 @@ def run_florence_caption(request: FlorenceCaptionRequest,
             import shutil
             shutil.rmtree(tmpdir, ignore_errors=True)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
 
 def run_florence_batch(image_paths, output_jsonl, config=None, mode="caption",
                        limit=None, project_root=None,
-                       caption_fn: Optional[Callable] = None,
+                       caption_fn: Callable | None = None,
                        resume: bool = True) -> dict:
     """Caption many images, streaming to JSONL. Resumable. ``caption_fn`` lets
     tests inject a fake captioner (defaults to ``run_florence_caption``)."""
@@ -421,6 +425,7 @@ def load_florence_results(jsonl_path) -> list:
             if line.strip():
                 out.append(json.loads(line))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 
@@ -483,6 +488,7 @@ def write_florence_sidecars(result: FlorenceCaptionResult, out_dir) -> dict:
             tp.write_text(result.caption + "\n", encoding="utf-8")
             written["txt"] = str(tp)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 

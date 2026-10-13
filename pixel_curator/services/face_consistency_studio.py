@@ -25,12 +25,15 @@ All processing is local and user-controlled.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "face_consistency_studio"
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
@@ -165,7 +168,7 @@ def _spec_available(name: str) -> bool:
         return False
 
 
-def _model_roots(config: Optional["FaceConsistencyConfig"]) -> list[Path]:
+def _model_roots(config: FaceConsistencyConfig | None) -> list[Path]:
     home = Path.home()
     roots: list[Path] = []
     if config and config.forge_models_root:
@@ -183,6 +186,7 @@ def _model_roots(config: Optional["FaceConsistencyConfig"]) -> list[Path]:
         roots += [Path(pp.DEFAULT_REALESRGAN_MODEL).parent,
                   Path(pp.DEFAULT_GFPGAN_MODEL).parent]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     # de-dup, keep order
     return list(dict.fromkeys(roots))
@@ -207,6 +211,7 @@ def _find_model(roots: list[Path], subdirs: tuple[str, ...],
                     if hits:
                         return str(hits[0])
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
     return ""
 
@@ -293,6 +298,7 @@ def _rt_providers() -> list[str]:
                 if pref in avail:
                     return [pref, "CPUExecutionProvider"]
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return ["CPUExecutionProvider"]
 

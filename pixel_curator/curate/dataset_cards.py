@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import subprocess
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 GENERATOR = "pixel_curator.curate.dataset_cards"
 STRUCTURED_SCHEMA = "dataset_manifest_v2"
@@ -125,6 +128,7 @@ def _load_manifest(dataset_dir: Path, manifest_path: Path | None,
                 if isinstance(data, dict):
                     return data
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
     return {}
 
@@ -240,6 +244,7 @@ def _caption_of(sample: dict, dataset_dir: Path) -> str:
             if p.is_file():
                 return p.read_text(encoding="utf-8")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return ""
 
@@ -683,7 +688,7 @@ def compute_dataset_hash(samples: list, dataset_dir: Path, target: str,
         h.update(rel.encode("utf-8")); h.update(b"\0")
         h.update(str(size).encode("utf-8")); h.update(b"\0")
         h.update(cap.encode("utf-8")); h.update(b"\0")
-    h.update(f"{target}\0{version}".encode("utf-8"))
+    h.update(f"{target}\0{version}".encode())
     return h.hexdigest()
 
 
@@ -695,6 +700,7 @@ def _git_commit(start: Path):
         if out.returncode == 0:
             return out.stdout.strip() or None
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
     return None
 

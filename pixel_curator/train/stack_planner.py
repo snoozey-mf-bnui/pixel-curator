@@ -13,14 +13,15 @@ as aliases that resolve to the same checkpoint (no new realism base is added).
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
-    from .base_profile import (BASE_PROFILE_NAME, BASE_CHECKPOINT,
-                               BASE_CHECKPOINT_PATH)
+    from .base_profile import BASE_CHECKPOINT, BASE_CHECKPOINT_PATH, BASE_PROFILE_NAME
 except Exception:                                        # pragma: no cover
     BASE_PROFILE_NAME = "CyberRealisticPony Personal Base"
     BASE_CHECKPOINT = "cyberrealisticPony_v180Coreshift.safetensors"
@@ -140,6 +141,7 @@ def _load_recipe(recipe_dir: Path) -> dict:
             data = json.loads(p.read_text(encoding="utf-8"))
             return data if isinstance(data, dict) else {}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return {}
 

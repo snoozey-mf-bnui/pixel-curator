@@ -16,6 +16,10 @@ an explicit upstream flag), specialized routing is blocked and the recipe is
 forced to ``review``. Source media is never touched.
 """
 from __future__ import annotations
+
+import logging
+
+logger = logging.getLogger(__name__)
 try:
     from pixel_curator import nsfw_router
 except ImportError:
@@ -25,7 +29,6 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
 
 CLASSIFIER_VERSION = "visual_focus_classifier_v1"
 
@@ -133,7 +136,7 @@ class RoutingRecommendation:
     recipe_type: str = ""
     reason: str = ""
     blocked: bool = False
-    block_reason: Optional[str] = None
+    block_reason: str | None = None
 
     def to_dict(self) -> dict:
         return {"target": self.target, "confidence": round(self.confidence, 4),
@@ -190,7 +193,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     try:
         return float(v) if v is not None else None
     except (TypeError, ValueError):
@@ -201,7 +204,7 @@ def _clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
 
 
-def _extract_florence(src: Optional[dict]) -> dict:
+def _extract_florence(src: dict | None) -> dict:
     """Normalize varied Florence shapes into a flat dict of useful fields."""
     if not src:
         return {}
@@ -232,7 +235,7 @@ def _extract_florence(src: Optional[dict]) -> dict:
     }
 
 
-def _extract_quality(src: Optional[dict]) -> dict:
+def _extract_quality(src: dict | None) -> dict:
     if not src:
         return {}
     q = src
@@ -334,7 +337,7 @@ def _secondary(fl: dict, q: dict, caption: str, primary: str) -> list:
     return out[:3]
 
 
-def _technical_quality(q: dict) -> Optional[float]:
+def _technical_quality(q: dict) -> float | None:
     vals = []
     for k in ("overall_quality_score", "integrity", "sharpness", "local_sharpness",
               "region_clarity", "region_balance_score", "lighting_quality",
@@ -647,7 +650,7 @@ def _visual_summary(primary, detail, pose, q: dict) -> str:
 # ============================ public API ====================================
 def classify_visual_focus(image_path, florence_result=None, quality_signals=None,
                           dataset_metadata=None,
-                          config: Optional[VisualFocusClassifierConfig] = None
+                          config: VisualFocusClassifierConfig | None = None
                           ) -> VisualFocusClassificationResult:
     """Classify one image from its metadata (no image/model loading)."""
     cfg = config or VisualFocusClassifierConfig()
@@ -723,6 +726,7 @@ def classify_visual_focus_batch(records, output_jsonl=None, config=None,
             try:
                 out_path.unlink()
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
         else:
             for line in out_path.read_text(encoding="utf-8").splitlines():
@@ -730,6 +734,7 @@ def classify_visual_focus_batch(records, output_jsonl=None, config=None,
                     try:
                         done.add(json.loads(line).get("image_path"))
                     except Exception:
+                        logger.debug("suppressed exception", exc_info=True)
                         pass
     results = []
     fh = None
@@ -767,6 +772,7 @@ def load_visual_focus_classifications(path) -> list:
             if line.strip():
                 out.append(json.loads(line))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 
@@ -905,6 +911,7 @@ def write_visual_focus_summary(results_jsonl, output_dir) -> dict:
         cp.write_text(render_routing_card(summary), encoding="utf-8")
         written["card"] = cp
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 

@@ -20,18 +20,17 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "horizontal_symmetry": 0.50,
     "vertical_proportion_balance": 0.50,
 }
@@ -40,12 +39,12 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
 @dataclass
 class BodySymmetryScores:
     """Container for body symmetry metrics with serialization capabilities."""
-    horizontal_symmetry: Optional[float] = None
-    vertical_proportion_balance: Optional[float] = None
-    overall_symmetry_score: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    horizontal_symmetry: float | None = None
+    vertical_proportion_balance: float | None = None
+    overall_symmetry_score: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -55,7 +54,7 @@ class BodySymmetryScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -66,7 +65,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _dist(p1: Point | None, p2: Point | None) -> float:
     """Euclidean distance between two points."""
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
@@ -79,7 +78,7 @@ def _gaussian_score(value: float, ideal: float, spread: float) -> float:
 
 # --- Geometric Estimation Helpers ---
 
-def estimate_horizontal_symmetry(keypoints: Dict[str, Point]) -> Optional[float]:
+def estimate_horizontal_symmetry(keypoints: dict[str, Point]) -> float | None:
     """
     Calculates horizontal symmetry by comparing left/right joint distances 
     to the spinal midline.
@@ -90,7 +89,7 @@ def estimate_horizontal_symmetry(keypoints: Dict[str, Point]) -> Optional[float]
 
     neck = keypoints["neck"]
     mid_hip = keypoints["mid_hip"]
-    
+
     # Midline vector direction
     mid_dx = mid_hip[0] - neck[0]
     mid_dy = mid_hip[1] - neck[1]
@@ -140,7 +139,7 @@ def estimate_horizontal_symmetry(keypoints: Dict[str, Point]) -> Optional[float]
     return float(max(0.0, 1.0 - mean_asymmetry))
 
 
-def estimate_vertical_proportion_balance(keypoints: Dict[str, Point]) -> Optional[float]:
+def estimate_vertical_proportion_balance(keypoints: dict[str, Point]) -> float | None:
     """
     Calculates vertical proportion balance using standard human anatomical ratios.
     Penalizes unnatural limb lengths (common in AI generation or severe perspective distortion).
@@ -153,7 +152,7 @@ def estimate_vertical_proportion_balance(keypoints: Dict[str, Point]) -> Optiona
     # 1. Shoulder/Hip Width Ratio (Ideal ~1.0 to 1.4 depending on gender/build)
     shoulder_width = _dist(keypoints["left_shoulder"], keypoints["right_shoulder"])
     hip_width = _dist(keypoints["left_hip"], keypoints["right_hip"])
-    
+
     if hip_width < 1e-6: return None
     sh_hip_ratio = shoulder_width / hip_width
     sh_hip_score = _gaussian_score(sh_hip_ratio, ideal=1.2, spread=0.4)
@@ -197,9 +196,9 @@ def estimate_vertical_proportion_balance(keypoints: Dict[str, Point]) -> Optiona
 # --- Main Logic ---
 
 def compute_overall_body_symmetry(
-    horizontal_symmetry: Optional[float] = None,
-    vertical_proportion_balance: Optional[float] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    horizontal_symmetry: float | None = None,
+    vertical_proportion_balance: float | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> BodySymmetryScores:
     """
     Main function to compute body symmetry quality from pre-computed signals.
@@ -236,8 +235,8 @@ def compute_overall_body_symmetry(
 
 
 def compute_symmetry_from_keypoints(
-    keypoints: Dict[str, Point],
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    keypoints: dict[str, Point],
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> BodySymmetryScores:
     """
     Convenience wrapper: Estimates all symmetry signals directly from 2D pose keypoints.

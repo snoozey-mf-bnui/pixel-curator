@@ -18,21 +18,22 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any, Tuple
 from collections import Counter
+from dataclasses import asdict, dataclass, field
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
 VALID_POSE_BUCKETS = [
-    "frontal", 
-    "three_quarter_left", 
-    "three_quarter_right", 
-    "profile_left", 
-    "profile_right", 
-    "rear_three_quarter", 
+    "frontal",
+    "three_quarter_left",
+    "three_quarter_right",
+    "profile_left",
+    "profile_right",
+    "rear_three_quarter",
     "rear",
     "unknown"
 ]
@@ -41,14 +42,14 @@ VALID_POSE_BUCKETS = [
 @dataclass
 class PoseDiversityScores:
     """Container for pose diversity metrics with serialization capabilities."""
-    diversity_score: Optional[float] = None
-    unique_pose_ratio: Optional[float] = None
-    average_frontalness: Optional[float] = None
-    keypoint_variance: Optional[float] = None  # New: Continuous spatial diversity
-    pose_distribution: Dict[str, int] = field(default_factory=dict)
+    diversity_score: float | None = None
+    unique_pose_ratio: float | None = None
+    average_frontalness: float | None = None
+    keypoint_variance: float | None = None  # New: Continuous spatial diversity
+    pose_distribution: dict[str, int] = field(default_factory=dict)
     total_frames: int = 0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -58,7 +59,7 @@ class PoseDiversityScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -70,8 +71,8 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 
 
 def bucket_pose(
-    frontalness: Optional[float] = None,
-    yaw: Optional[float] = None
+    frontalness: float | None = None,
+    yaw: float | None = None
 ) -> str:
     """
     Buckets pose based on frontalness or explicit 3D yaw angle.
@@ -106,24 +107,24 @@ def bucket_pose(
         return "rear_three_quarter"
 
 
-def calculate_keypoint_variance(frames: List[Dict], keypoint_key: str = "pose_keypoints") -> Optional[float]:
+def calculate_keypoint_variance(frames: list[dict], keypoint_key: str = "pose_keypoints") -> float | None:
     """
     Computes the average variance of skeletal keypoints across all frames.
     High variance indicates diverse body poses and camera angles.
     
     Expects keypoints in format: List[float] or np.ndarray of shape (N,) or (N, 2).
     """
-    valid_keypoints: List[np.ndarray] = []
-    
+    valid_keypoints: list[np.ndarray] = []
+
     for frame in frames:
         kps = frame.get(keypoint_key)
         if kps is None:
             continue
-            
+
         try:
             # Convert to flat numpy array
             kp_array = np.asarray(kps, dtype=np.float32).flatten()
-            
+
             # Filter out completely zeroed-out keypoints (missed detections)
             if np.any(kp_array > 0):
                 valid_keypoints.append(kp_array)
@@ -137,24 +138,24 @@ def calculate_keypoint_variance(frames: List[Dict], keypoint_key: str = "pose_ke
     try:
         # Stack to shape: (Num_Frames, Num_Keypoint_Coords)
         stacked = np.stack(valid_keypoints, axis=0)
-        
+
         # Calculate variance across frames (axis=0) and take the mean
         # We use max to avoid negative zeros, and mean to get a single score
         mean_variance = float(np.mean(np.var(stacked, axis=0)))
-        
+
         # Normalize: Keypoints are usually in 0-1 (normalized) or 0-WH (pixel) space.
         # Assuming normalized 0-1 coordinates, a variance > 0.05 is highly diverse.
         # We use an asymptotic normalizer to cap it at 1.0
         normalized_variance = min(1.0, mean_variance / (mean_variance + 0.05))
         return normalized_variance
-        
+
     except Exception as e:
         logger.error(f"Error computing keypoint variance: {e}")
         return None
 
 
 def compute_pose_diversity(
-    frames: List[Dict[str, Any]],
+    frames: list[dict[str, Any]],
     frontalness_key: str = "frontalness",
     yaw_key: str = "yaw",  # New: allows for 3D angle support
     pose_bucket_key: str = "pose_bucket",
@@ -179,10 +180,10 @@ def compute_pose_diversity(
         bucket = frame.get(pose_bucket_key)
         yaw = frame.get(yaw_key)
         front = frame.get(frontalness_key)
-        
+
         if not bucket or bucket == "unknown":
             bucket = bucket_pose(frontalness=front, yaw=yaw)
-            
+
         pose_buckets.append(bucket)
 
         # 2. Collect Frontalness
@@ -229,7 +230,7 @@ def compute_pose_diversity(
     )
 
 
-def get_average_frontalness(frames: List[Dict], key: str = "frontalness") -> float:
+def get_average_frontalness(frames: list[dict], key: str = "frontalness") -> float:
     """Returns the mean frontalness across frames (if available)."""
     values = [_sanitize_score(f.get(key)) for f in frames]
     valid_values = [v for v in values if v is not None]

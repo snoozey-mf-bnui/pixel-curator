@@ -13,10 +13,12 @@ Tolerant by design: works on datasets that haven't run every quality pass
 
 from __future__ import annotations
 
+import logging
 import math
-from typing import Optional
 
 from .presets import PRESETS
+
+logger = logging.getLogger(__name__)
 
 # total-steps comfort bands per preset family: (low, high).
 # Under-shooting the low end under-trains; far above the high end mostly
@@ -58,9 +60,9 @@ def _fmt_duration(seconds: float) -> str:
 
 
 def recommend_training_params(conn, dataset_version: int,
-                              preset_name: Optional[str] = None,
-                              recipe_name: Optional[str] = None,
-                              presets: Optional[dict] = None) -> dict:
+                              preset_name: str | None = None,
+                              recipe_name: str | None = None,
+                              presets: dict | None = None) -> dict:
     """Dataset-aware parameter recommendation for a built dataset version.
 
     When ``preset_name`` is omitted the preset recommender picks one first.
@@ -176,9 +178,11 @@ def recommend_training_params(conn, dataset_version: int,
 
     # --- lint cross-link (Phase 4 Part A) ------------------------------------
     try:
-        from ..lint import (detect_caption_contradictions,
-                            detect_caption_duplicate_tags,
-                            detect_dataset_count_drift)
+        from ..lint import (
+            detect_caption_contradictions,
+            detect_caption_duplicate_tags,
+            detect_dataset_count_drift,
+        )
         n_fixable = sum(len(d(conn)) for d in (
             detect_caption_contradictions, detect_caption_duplicate_tags,
             detect_dataset_count_drift))
@@ -186,6 +190,7 @@ def recommend_training_params(conn, dataset_version: int,
             warnings.append(f"{n_fixable} auto-fixable lint issue(s) found - "
                             "run `insights lint --fix` before training.")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # --- totals + wall-clock estimates ---------------------------------------

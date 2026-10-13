@@ -15,11 +15,13 @@ progressive-layering assessment before it is returned.
 
 from __future__ import annotations
 
-from typing import Optional
+import logging
 
 from ..config import Project
 from ..identity_integration import assess_concept_layering
 from .prompt_composer import ROLE_WEIGHT_RANGES
+
+logger = logging.getLogger(__name__)
 
 # Concept candidates: (library-name hint, role, dataset signal key,
 # minimum signal value, professional reason)
@@ -48,7 +50,7 @@ def _mid(role: str) -> float:
     return round((lo + hi) / 2, 2)
 
 
-def _library(prj: Optional[Project]) -> tuple[Optional[str], dict[str, str]]:
+def _library(prj: Project | None) -> tuple[str | None, dict[str, str]]:
     """(identity anchor lora_id or None, lowercase-name -> lora_id)."""
     try:
         from ..lora_explorer import scan_loras
@@ -74,10 +76,10 @@ def _duplicate_density(conn, dataset_version: int) -> float:
         return 0.0
 
 
-def recommend_best_stack(conn, prj: Optional[Project],
+def recommend_best_stack(conn, prj: Project | None,
                          dataset_version: int,
-                         identity_strength: Optional[float] = None,
-                         concept_strength: Optional[float] = None) -> dict:
+                         identity_strength: float | None = None,
+                         concept_strength: float | None = None) -> dict:
     """Recommend an identity-preserving concept stack for a dataset.
 
     Conservative by design: richer stacks only when dataset quality and
@@ -252,7 +254,7 @@ def render_recommendation(rec: dict) -> str:
 # Phase 4: best epoch + stack in one recommendation
 # ---------------------------------------------------------------------------
 
-def recommend_best_epoch_and_stack(conn, prj: Optional[Project],
+def recommend_best_epoch_and_stack(conn, prj: Project | None,
                                    run_name: str = "") -> dict:
     """Combine the best-epoch sweep verdict with the smart stack
     recommendation: which checkpoint to anchor identity on, and which
@@ -270,7 +272,7 @@ def recommend_best_epoch_and_stack(conn, prj: Optional[Project],
         + "ORDER BY run_id DESC LIMIT 1",
         ((run_name,) if run_name else ())).fetchone()
     if not row:
-        raise KeyError(f"no training run found"
+        raise KeyError("no training run found"
                        + (f" named '{run_name}'" if run_name else ""))
     run_name, dataset_version, status = row[0], int(row[1] or 0), row[2]
 
@@ -409,10 +411,10 @@ def render_epoch_stack(rec: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def recommend_figure_study_stack(
-        recipe_name: str, prj: Optional[Project] = None,
-        conn=None, dataset_version: Optional[int] = None,
-        identity_strength: Optional[float] = None,
-        concept_strength: Optional[float] = None,
+        recipe_name: str, prj: Project | None = None,
+        conn=None, dataset_version: int | None = None,
+        identity_strength: float | None = None,
+        concept_strength: float | None = None,
         negative_intensity: str = "standard") -> dict:
     """Layering recommendation for one figure-study recipe: ordered
     stack with per-layer reasoning, prompt/negative patterns, overstack
@@ -438,6 +440,7 @@ def recommend_figure_study_stack(
                     "identity.")
                 codes.append("concept_weights_down_weighted_for_identity")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     id_name = ""

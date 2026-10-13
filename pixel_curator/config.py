@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 try:
     import tomllib  # py3.11+
@@ -150,7 +149,7 @@ class CurateConfig:
 @dataclass
 class SmartCurateConfig:
     output_base: Path
-    anchor_dir: Optional[Path] = None      # reference images of the subject
+    anchor_dir: Path | None = None      # reference images of the subject
     identity_threshold: float = 0.35       # cosine sim vs anchor (ArcFace space)
     min_face_area: float = 0.015           # face bbox area / image area floor
     det_size: int = 640
@@ -165,7 +164,7 @@ class SmartCurateConfig:
     # Optional Google Takeout sidecar assist: when the source's people tag
     # confirms the subject, relax the identity threshold so good frames at a
     # bad angle are not falsely rejected as wrong-identity.
-    metadata_dir: Optional[Path] = None
+    metadata_dir: Path | None = None
     subject_names: tuple = ()
     sidecar_identity_relax: float = 0.10
     # Priority-5 performance options (opt-in; defaults preserve behavior).
@@ -389,7 +388,7 @@ def _parse_flat_toml(text: str) -> dict:
     intended for files written by `pixel-curator init` / the Settings tab."""
     data: dict = {}
     current: dict = data
-    key: Optional[str] = None
+    key: str | None = None
     in_array = False
     items: list[str] = []
     for raw in text.splitlines():
@@ -484,7 +483,7 @@ def save_project(prj: Project, path: Path) -> None:
         path.write_text(dumps_toml(prj), encoding="utf-8")
 
 
-def load_project(path: Optional[str]) -> Project:
+def load_project(path: str | None) -> Project:
     """Load project file (TOML or JSON). Missing path -> defaults."""
     if not path:
         return Project()

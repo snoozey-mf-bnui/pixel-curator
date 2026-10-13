@@ -87,7 +87,7 @@ class AdvancedQualityConfig:
                    color_cast=False, duplicate_detection=False,
                    exposure_outlier=False, region_readiness=False,
                    coverage_intensity=False, pose_duplicate=False,
-                   **aliases) -> "AdvancedQualityConfig":
+                   **aliases) -> AdvancedQualityConfig:
         # defensive: also accept `with_<name>` aliases if a caller passes them
         def _pick(name, val):
             return bool(val or aliases.get(f"with_{name}", False))

@@ -6,14 +6,17 @@ training type, a real entrypoint, and an available device.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import model_architecture as arch
-from .training_jobs import TrainingJob, TrainingJobStore
 from .log_streaming import ProcessLogManager, new_job_id
+from .training_jobs import TrainingJob, TrainingJobStore
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVICES = ("auto", "mps", "cuda", "cpu")
@@ -29,12 +32,14 @@ def detect_training_devices(prefer_mps: bool = True) -> dict:
         try:
             info["cuda_available"] = bool(torch.cuda.is_available())
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         try:
             info["mps_available"] = bool(
                 getattr(torch.backends, "mps", None)
                 and torch.backends.mps.is_available())
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     except Exception:
         info["warnings"].append("torch not installed - plan-only mode")

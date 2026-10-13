@@ -23,10 +23,9 @@ from __future__ import annotations
 import json
 import logging
 import math
-import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterable, Optional
 
 import numpy as np
 
@@ -108,7 +107,7 @@ def _cosine_dist(a: np.ndarray, b: np.ndarray) -> float:
     return 1.0 - _cosine_sim(a, b)
 
 
-def _decode_embed(raw) -> Optional[np.ndarray]:
+def _decode_embed(raw) -> np.ndarray | None:
     """Decode an embed BLOB or JSON string into a 1-D float32 array."""
     if raw is None:
         return None
@@ -118,6 +117,7 @@ def _decode_embed(raw) -> Optional[np.ndarray]:
             if arr.size == EMBED_DIM:
                 return arr.copy()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return None
     if isinstance(raw, str):
@@ -126,6 +126,7 @@ def _decode_embed(raw) -> Optional[np.ndarray]:
             if isinstance(lst, list) and len(lst) == EMBED_DIM:
                 return np.array(lst, dtype=np.float32)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return None
     return None
@@ -220,6 +221,7 @@ def _silhouette_k(
     except ImportError:
         pass
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # Pure-numpy fallback: without sklearn silhouette or HDBSCAN,
@@ -819,7 +821,7 @@ if __name__ == "__main__":
                    scope="det_test", min_frames=12,
                    ts_override="2025-01-01T00:00:00Z")
     assert r3a.to_json() == r3b.to_json(), "determinism violated"
-    print(f"4. Determinism: byte-identical JSON OK")
+    print("4. Determinism: byte-identical JSON OK")
 
     # Case 5: JSON round-trip
     j = r1.to_json()

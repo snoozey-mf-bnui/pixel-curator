@@ -23,13 +23,12 @@ import json
 import logging
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .personal_content_analyzer import (PersonalAnalyzerConfig, coerce_config,
-                                        enrich_sample)
+from .personal_content_analyzer import PersonalAnalyzerConfig, coerce_config, enrich_sample
 
 log = logging.getLogger("redresser.dataset_splitter")
 
@@ -110,8 +109,7 @@ CAPTION_DEFAULTS: dict[str, str] = {
 # Optional existing classifier (used defensively as a first automatic pass).
 # ---------------------------------------------------------------------------
 try:                                                # pragma: no cover
-    from ..train.dataset_classifier import (
-        classify_training_sample as _existing_classifier)
+    from ..train.dataset_classifier import classify_training_sample as _existing_classifier
 except Exception:                                   # pragma: no cover
     _existing_classifier = None
 
@@ -428,8 +426,7 @@ def annotate_pose_duplicates(sample_rows: list[dict], config=None) -> int:
     removes, reorders or hard-filters samples. Returns the near-duplicate count.
     Never raises."""
     try:
-        from .pose_duplicate_detector import (detect_pose_duplicates,
-                                              PoseDuplicateConfig)
+        from .pose_duplicate_detector import PoseDuplicateConfig, detect_pose_duplicates
     except Exception:
         return 0
     cfg = config or PoseDuplicateConfig()
@@ -676,8 +673,10 @@ def _register_export_version_safe(manifest: dict, version_dir: Path,
     """Phase 2 versioning hook for real exports. Never raises."""
     try:
         from ..dataset_versioning import (
-            KIND_LORA_TARGET_EXPORT, register_folder_export,
-            write_version_sidecar)
+            KIND_LORA_TARGET_EXPORT,
+            register_folder_export,
+            write_version_sidecar,
+        )
         files = [{"rel_path": r["image_target"],
                   "source_path": r.get("source_path"),
                   "caption": r.get("caption")}
@@ -716,8 +715,7 @@ def _write_dataset_card_safe(manifest: dict, version_dir: Path,
     """Generate the rich dataset card + structured manifest, additively. Any
     failure is recorded as a warning and never interrupts the export."""
     try:
-        from .dataset_cards import (generate_dataset_card,
-                                    validate_exported_dataset)
+        from .dataset_cards import generate_dataset_card, validate_exported_dataset
         report = validate_exported_dataset(version_dir, manifest=manifest)
         card = generate_dataset_card(
             version_dir, manifest=manifest, validation_report=report,

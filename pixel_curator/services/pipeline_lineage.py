@@ -8,11 +8,13 @@ about uncertainty: an unknown reason is reported as "unknown" rather than guesse
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
 
 from . import dataset_explorer as dx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,10 +25,10 @@ class ImageLineage:
     stages_missing: list = field(default_factory=list)
     version_membership: list = field(default_factory=list)
     events: list = field(default_factory=list)
-    likely_removal_reason: Optional[str] = None
+    likely_removal_reason: str | None = None
     quality_signals: dict = field(default_factory=dict)
     flags: list = field(default_factory=list)
-    file_exists: Optional[bool] = None
+    file_exists: bool | None = None
     warnings: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -40,7 +42,7 @@ class ImageLineage:
                 "file_exists": self.file_exists, "warnings": self.warnings}
 
 
-def _resolve_frame_id(conn, image_path_or_id: str) -> Optional[str]:
+def _resolve_frame_id(conn, image_path_or_id: str) -> str | None:
     """Accept a frame_id or an absolute/partial path and return the frame_id."""
     s = str(image_path_or_id)
     try:
@@ -58,6 +60,7 @@ def _resolve_frame_id(conn, image_path_or_id: str) -> Optional[str]:
         if row:
             return row[0]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
     return None
 
@@ -78,6 +81,7 @@ def _events_for(conn, frame_id: str) -> list:
                 "ORDER BY ts LIMIT 50", (sid,)):
             out.append({"level": level, "message": message, "ts": ts})
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 

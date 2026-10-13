@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pixel-curator"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Local-first CLI for extracting, scoring, curating and exporting image datasets - from raw video/photo archives to training-ready packages"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,10 +31,26 @@ caption = ["onnxruntime>=1.16", "huggingface-hub>=0.20"]
 cluster = ["torch>=2.0", "open-clip-torch>=2.24"]
 vlm = ["torch>=2.0", "transformers>=4.40"]
 parquet = ["pandas>=2.0", "pyarrow>=14.0"]
+# OpenCV-based scorers in curate/ (blur, exposure, symmetry, ...)
+cv = ["opencv-python>=4.8", "scikit-learn>=1.3"]
+# Identity / face-analysis features (insightface + YuNet)
+face = ["insightface>=0.7", "opencv-python>=4.8"]
+# LoRA / DreamBooth training and evaluation
+train = ["torch>=2.0", "diffusers>=0.27", "transformers>=4.40", "safetensors>=0.4", "accelerate>=0.27"]
+# Image restoration post-processing (Real-ESRGAN / GFPGAN)
+restore = ["basicsr>=1.4", "realesrgan>=0.3", "gfpgan>=1.3"]
+# HEIC/HEIF photo ingest
+heif = ["pillow-heif>=0.14"]
+# UMAP / HDBSCAN embedding visualisation
+viz = ["umap-learn>=0.5", "hdbscan>=0.8"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
 all = [
     "onnxruntime>=1.16", "huggingface-hub>=0.20",
     "torch>=2.0", "open-clip-torch>=2.24", "transformers>=4.40",
     "pandas>=2.0", "pyarrow>=14.0",
+    "opencv-python>=4.8", "scikit-learn>=1.3",
+    "diffusers>=0.27", "safetensors>=0.4", "accelerate>=0.27",
+    "pillow-heif>=0.14",
 ]
 
 [project.scripts]
@@ -46,3 +62,38 @@ Issues = "https://github.com/snoozey-mf-bnui/pixel-curator/issues"
 
 [tool.setuptools.packages.find]
 include = ["pixel_curator*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pixel_curator.__version__"}
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["models", "outputs", "projects", "report"]
+
+[tool.ruff.lint]
+# Keep the signal high on the legacy codebase: start with real defects,
+# widen the ruleset over time (see ignored rules below).
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = [
+    "E501",   # line length handled by formatter / long CLI help strings
+    "E402",   # sys.path bootstrap in tests
+    "B008",   # argparse-style function calls in defaults are deliberate
+    # --- legacy backlog: re-enable one at a time -----------------------
+    "E701", "E702", "E741",   # compact one-liners / ambiguous names
+    "B904", "B905", "B007",   # raise-from, zip strict=, unused loop vars
+    "UP031",                  # printf-style formatting in log messages
+    "F841",                   # unused locals (91 sites; needs manual triage)
+    "W291", "W293",           # stray whitespace in old files
+]
+
+[tool.ruff.lint.per-file-ignores]
+# generated dispatch modules intentionally share one star-import scope
+"pixel_curator/cli/commands/**" = ["F401", "F403", "F405"]
+"pixel_curator/cli/dispatch.py" = ["F403", "F405"]
+"pixel_curator/tests/**" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["pixel_curator/tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

@@ -18,9 +18,9 @@ manifest meta (`sweep:<run>`) and printed as a table.
 from __future__ import annotations
 
 import re
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import Project
@@ -41,10 +41,10 @@ class SweepConfig:
     seeds: list[int] = field(default_factory=lambda: [42, 1042])
     max_gap: float = 0.15                    # overfit guard
     limit_epochs: int = 0                    # 0 = all
-    generate_fn: Optional[object] = None     # test hook (passed to matrix)
+    generate_fn: object | None = None     # test hook (passed to matrix)
 
 
-def epoch_number(stem: str) -> Optional[int]:
+def epoch_number(stem: str) -> int | None:
     """'name-000004' -> 4; final 'name' (no suffix) -> None (means last)."""
     m = EPOCH_RE.search(stem)
     return int(m.group(1)) if m else None
@@ -81,7 +81,7 @@ def epoch_stats(conn, label: str) -> dict:
     return out
 
 
-def recommend_epoch(rows: list[dict], max_gap: float = 0.15) -> Optional[dict]:
+def recommend_epoch(rows: list[dict], max_gap: float = 0.15) -> dict | None:
     """rows: [{epoch, label, likeness, flexibility}]. Best = highest likeness
     whose likeness-flexibility gap is acceptable; falls back to highest
     likeness overall if every epoch is overfit (with a warning flag)."""
@@ -171,5 +171,5 @@ def sweep_generator(prj: Project, cfg: SweepConfig) -> Generator[str, None, None
     )
 
 
-def sweep_summary(conn, run: str) -> Optional[dict]:
+def sweep_summary(conn, run: str) -> dict | None:
     return manifest.meta_get(conn, f"sweep:{run}")

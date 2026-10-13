@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FALLBACK_JOBS = REPO_ROOT / "projects" / "training_jobs.json"
@@ -47,7 +50,7 @@ class TrainingJob:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "TrainingJob":
+    def from_dict(cls, d: dict) -> TrainingJob:
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in (d or {}).items() if k in known})
 
@@ -59,6 +62,7 @@ def default_jobs_path(output_base: str | None = None) -> Path:
             if p.is_dir() or p.parent.is_dir():
                 return p / "training_jobs.json"
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return FALLBACK_JOBS
 
@@ -75,6 +79,7 @@ class TrainingJobStore:
                 if isinstance(data, dict) and isinstance(data.get("jobs"), list):
                     return data["jobs"]
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return []
 
@@ -84,6 +89,7 @@ class TrainingJobStore:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(json.dumps({"jobs": jobs}, indent=2), encoding="utf-8")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     def list_jobs(self) -> list:

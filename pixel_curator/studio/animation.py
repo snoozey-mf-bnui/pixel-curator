@@ -21,10 +21,8 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
-from ..eval.forge_api import (ForgeClient, build_animatediff_payload,
-                              export_sequence_gif)
+from ..eval.forge_api import ForgeClient, build_animatediff_payload, export_sequence_gif
 from ..lora_validator import normalize_stack_text, validate_lora_stack
 
 log = logging.getLogger("redresser.animation")
@@ -96,7 +94,7 @@ class FramePlan:
 class GarmentTransformationSequence:
     """Plan (and optionally generate) a wardrobe transformation sequence."""
 
-    def __init__(self, forge_api: Optional[ForgeClient] = None,
+    def __init__(self, forge_api: ForgeClient | None = None,
                  output_dir: Path | str | None = None,
                  lora_dir: Path | str | None = None,
                  enable_post_processing: bool = False) -> None:
@@ -317,7 +315,7 @@ class GarmentTransformationSequence:
 def generate_garment_transformation_sequence(
         init_image_path: Path | str, lora_stack: list, target_preset: str,
         num_frames: int = 8, fps: int = 12,
-        forge_api: Optional[ForgeClient] = None,
+        forge_api: ForgeClient | None = None,
         output_dir: Path | str | None = None,
         lora_dir: Path | str | None = None,
         enable_post_processing: bool = False) -> list[Path]:

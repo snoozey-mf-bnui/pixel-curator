@@ -4,12 +4,14 @@ Forge adapter with CoreShift profile settings; offline they explain and
 exit cleanly."""
 from __future__ import annotations
 
-import base64
 import json
+import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from .config import Project
+
+logger = logging.getLogger(__name__)
 
 PREVIEW_WEIGHTS = {"low": 0.4, "medium": 0.7, "high": 1.0}
 GOLDEN_SEED = 4242
@@ -85,6 +87,7 @@ def ab_compare(prj: Project, lora_a: tuple, lora_b: tuple,
 
 def side_by_side(png_a: bytes, png_b: bytes, out_path) -> Path:
     import io
+
     from PIL import Image
     a = Image.open(io.BytesIO(png_a))
     b = Image.open(io.BytesIO(png_b))
@@ -106,6 +109,7 @@ def golden_prompts(prj: Project, path=None) -> list[str]:
         try:
             return list(json.loads(fp.read_text()))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     prof = detect_profile(prj.base_model)
     trig = f"{prj.trigger_token} {prj.class_word}".strip()
@@ -126,7 +130,7 @@ def golden_prompts(prj: Project, path=None) -> list[str]:
 
 
 def golden_regression(prj: Project, lora: str, weight: float = 0.75,
-                      previous: Optional[str] = None,
+                      previous: str | None = None,
                       forge_url: str = "http://127.0.0.1:7860"
                       ) -> Generator[str, None, None]:
     """Render the 10 golden prompts at a fixed seed, score measured face

@@ -8,12 +8,14 @@ working. stdlib-only, thread-safe, import-safe (no Gradio/torch).
 """
 from __future__ import annotations
 
+import logging
 import subprocess
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def new_job_id(prefix: str = "job") -> str:
@@ -66,8 +68,10 @@ def discover_recent_logs(root, limit: int = 50) -> list:
                             "modified": datetime.fromtimestamp(
                                 st.st_mtime).isoformat(timespec="seconds")})
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 
@@ -79,11 +83,11 @@ class ManagedProcess:
     cwd: str
     log_path: str
     status: str = "pending"   # pending|running|completed|failed|stopped
-    returncode: Optional[int] = None
+    returncode: int | None = None
     created_at: str = field(default_factory=lambda:
                             datetime.now().isoformat(timespec="seconds"))
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
 
     def to_dict(self) -> dict:
         return {"job_id": self.job_id, "command": list(self.command),
@@ -175,6 +179,7 @@ class ProcessLogManager:
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(f"\n[spawn error] {type(exc).__name__}: {exc}\n")
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
             with self._lock:
                 self._procs[job_id] = mp

@@ -20,8 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, List, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -40,21 +39,21 @@ class DuplicateThresholds:
     """Configurable thresholds for duplicate classification."""
     # Hamming distance out of 64 bits.
     # 0 = identical. < 5 = near duplicate. < 10 = highly similar.
-    strict_distance: int = 5       
+    strict_distance: int = 5
     loose_distance: int = 12
 
 
 @dataclass
 class DuplicateScores:
     """Container for duplicate detection results with serialization."""
-    similarity_score: Optional[float] = None    # 0.0 (unique) to 1.0 (identical)
-    is_duplicate: Optional[bool] = None
-    duplicate_of: Optional[int] = None          # Index/ID of the frame it duplicates
-    hamming_distance: Optional[int] = None
+    similarity_score: float | None = None    # 0.0 (unique) to 1.0 (identical)
+    is_duplicate: bool | None = None
+    duplicate_of: int | None = None          # Index/ID of the frame it duplicates
+    hamming_distance: int | None = None
     confidence: float = 0.0
-    thresholds_used: Dict[str, int] = field(default_factory=dict)
+    thresholds_used: dict[str, int] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -64,7 +63,7 @@ class DuplicateScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -74,7 +73,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 
 # --- CV & Hashing Estimation Helpers ---
 
-def compute_dhash(image: np.ndarray, hash_size: int = 8) -> Optional[int]:
+def compute_dhash(image: np.ndarray, hash_size: int = 8) -> int | None:
     """
     Computes the difference hash (dHash) of an image.
     dHash is robust to scaling, brightness changes, and compression artifacts.
@@ -82,22 +81,22 @@ def compute_dhash(image: np.ndarray, hash_size: int = 8) -> Optional[int]:
     """
     if not CV2_AVAILABLE or image is None:
         return None
-        
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
-    
+
     # Resize to 9x8 (width+1, height) to compute horizontal differences
     resized = cv2.resize(gray, (hash_size + 1, hash_size), interpolation=cv2.INTER_AREA)
-    
+
     # Compute horizontal gradient: 1 if left pixel is brighter than right pixel
     diff = resized[:, 1:] > resized[:, :-1]
-    
+
     # Flatten the 8x8 boolean array and convert to a 64-bit integer
     flat_hash = diff.flatten()
     integer_hash = 0
     for i, bit in enumerate(flat_hash):
         if bit:
             integer_hash |= (1 << i)
-            
+
     return integer_hash
 
 
@@ -114,10 +113,10 @@ def hamming_to_similarity(distance: int, hash_size: int = 64) -> float:
 # --- Main Logic ---
 
 def evaluate_duplicate(
-    similarity_score: Optional[float] = None,
-    is_duplicate: Optional[bool] = None,
-    duplicate_of: Optional[int] = None,
-    hamming_distance: Optional[int] = None,
+    similarity_score: float | None = None,
+    is_duplicate: bool | None = None,
+    duplicate_of: int | None = None,
+    hamming_distance: int | None = None,
     thresholds: DuplicateThresholds = DuplicateThresholds(),
 ) -> DuplicateScores:
     """
@@ -153,7 +152,7 @@ def evaluate_duplicate(
 def evaluate_duplicate_from_images(
     image1: np.ndarray,
     image2: np.ndarray,
-    original_id: Optional[int] = None,
+    original_id: int | None = None,
     thresholds: DuplicateThresholds = DuplicateThresholds(),
 ) -> DuplicateScores:
     """
@@ -164,7 +163,7 @@ def evaluate_duplicate_from_images(
 
     hash1 = compute_dhash(image1)
     hash2 = compute_dhash(image2)
-    
+
     if hash1 is None or hash2 is None:
         return evaluate_duplicate(thresholds=thresholds)
 
@@ -187,7 +186,7 @@ class DuplicateRegistry:
 
     def __init__(self, thresholds: DuplicateThresholds = DuplicateThresholds()):
         self.thresholds = thresholds
-        self.registry: List[Tuple[int, int]] = []  # List of (frame_id, hash)
+        self.registry: list[tuple[int, int]] = []  # List of (frame_id, hash)
 
     def check_and_add(self, frame_id: int, image: np.ndarray) -> DuplicateScores:
         """
@@ -274,15 +273,15 @@ if __name__ == "__main__":
 
         print("5. Testing Stateful Duplicate Registry:")
         registry = DuplicateRegistry()
-        
+
         # Frame 0: Add unique image
         s0 = registry.check_and_add(0, img1)
         print(f"   Frame 0: Is Dup: {s0.is_duplicate}, Dup Of: {s0.duplicate_of}")
-        
+
         # Frame 1: Add completely different image
         s1 = registry.check_and_add(1, img3)
         print(f"   Frame 1: Is Dup: {s1.is_duplicate}, Dup Of: {s1.duplicate_of}")
-        
+
         # Frame 2: Add near-duplicate of Frame 0
         s2 = registry.check_and_add(2, img2)
         print(f"   Frame 2: Is Dup: {s2.is_duplicate}, Dup Of: {s2.duplicate_of} (Should be 0)")

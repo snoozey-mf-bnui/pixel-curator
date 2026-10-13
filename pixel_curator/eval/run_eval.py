@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from .. import manifest
 from ..config import Project
@@ -57,7 +56,7 @@ GRID_DIMENSIONS = [
 _RISK_LABELS = ((0.66, "high"), (0.33, "moderate"), (0.0, "low"))
 
 
-def _run_row(conn, run_name: str) -> Optional[dict]:
+def _run_row(conn, run_name: str) -> dict | None:
     row = conn.execute(
         "SELECT run_id, name, dataset_version, preset, status, "
         "current_step, total_steps, current_epoch, total_epochs, "
@@ -94,7 +93,7 @@ def _arcface_available() -> tuple[bool, str]:
         return False, str(exc)
 
 
-def _strength_label(score: Optional[float]) -> str:
+def _strength_label(score: float | None) -> str:
     if score is None:
         return "untested"
     if score >= 0.75:
@@ -138,9 +137,9 @@ def build_flexibility_grid(prj: Project, run_name: str,
 
 
 def _overfit(signals: dict, dup_density: float, cluster_count: int,
-             steps_per_image: Optional[float],
-             likeness: Optional[float],
-             flexibility: Optional[float]) -> dict:
+             steps_per_image: float | None,
+             likeness: float | None,
+             flexibility: float | None) -> dict:
     score = 0.0
     codes: list[str] = []
     recs: list[str] = []
@@ -412,7 +411,7 @@ def render_eval(r: dict) -> str:
     ]
     for cat, s in fx["per_category"].items():
         lines.append(f"- {cat}: {s['avg']} ({s['status']})")
-    lines += ["", f"Overfit Risk:", f"- {of['risk'].capitalize()} "
+    lines += ["", "Overfit Risk:", f"- {of['risk'].capitalize()} "
               f"(score {of['score']})"]
     for rec in of["recommendations"]:
         lines.append(f"- {rec}")

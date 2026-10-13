@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import Optional
 
 from .config import CurateConfig, PrefilterConfig
 
@@ -63,7 +62,7 @@ def _stage(inv: dict, conn) -> str:
     return "raw"
 
 
-def _scored_rates(conn, ccfg: CurateConfig) -> Optional[dict]:
+def _scored_rates(conn, ccfg: CurateConfig) -> dict | None:
     """Projected reject rates from frames that already carry scores."""
     rows = conn.execute(
         "SELECT sharpness, brightness FROM frames "
@@ -85,7 +84,7 @@ def _scored_rates(conn, ccfg: CurateConfig) -> Optional[dict]:
 
 
 def _sample_rates(conn, sample: int, ccfg: CurateConfig,
-                  pcfg: PrefilterConfig, seed: int = 42) -> Optional[dict]:
+                  pcfg: PrefilterConfig, seed: int = 42) -> dict | None:
     """Score a random sample of 'new' frames to project reject rates on a
     raw archive. Also runs the zero-decode prefilter battery and estimates
     within-source duplicate pressure on contiguous runs."""
@@ -144,7 +143,7 @@ def _sample_rates(conn, sample: int, ccfg: CurateConfig,
             "unreadable_rate": round(unreadable / n, 3)}
 
 
-def _dup_pressure(conn, inv: dict) -> Optional[dict]:
+def _dup_pressure(conn, inv: dict) -> dict | None:
     """Actual duplicate pressure once curation ran."""
     by = inv["by_status"]
     dupes = by.get("duplicate", 0) + by.get("rejected_neardup", 0)
@@ -155,7 +154,7 @@ def _dup_pressure(conn, inv: dict) -> Optional[dict]:
             "rate": round(dupes / considered, 3)}
 
 
-def _identity(conn) -> Optional[dict]:
+def _identity(conn) -> dict | None:
     row = conn.execute(
         "SELECT COUNT(*), AVG(identity_sim) FROM detections "
         "WHERE identity_sim IS NOT NULL").fetchone()
@@ -169,8 +168,8 @@ def _identity(conn) -> Optional[dict]:
 # synthesis
 # ---------------------------------------------------------------------------
 
-def _usable_estimate(inv: dict, rates: Optional[dict],
-                     dup: Optional[dict]) -> dict:
+def _usable_estimate(inv: dict, rates: dict | None,
+                     dup: dict | None) -> dict:
     by = inv["by_status"]
     selected = by.get("selected", 0) + by.get("packaged", 0)
     pending = by.get("new", 0) + by.get("scored", 0)
@@ -193,8 +192,8 @@ def _usable_estimate(inv: dict, rates: Optional[dict],
                      "uncurated frames"}
 
 
-def _recommendations(inv: dict, stage: str, rates: Optional[dict],
-                     dup: Optional[dict], ident: Optional[dict],
+def _recommendations(inv: dict, stage: str, rates: dict | None,
+                     dup: dict | None, ident: dict | None,
                      usable: dict, pf_summary: dict) -> list[dict]:
     recs: list[dict] = []
 
@@ -285,8 +284,8 @@ def _training_outlook(usable: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def analyze_dataset(conn, output_base=None, sample: int = 0,
-                    curate_cfg: Optional[CurateConfig] = None,
-                    prefilter_cfg: Optional[PrefilterConfig] = None,
+                    curate_cfg: CurateConfig | None = None,
+                    prefilter_cfg: PrefilterConfig | None = None,
                     seed: int = 42) -> dict:
     """Holistic dataset analysis. ``sample > 0`` enables scoring a random
     sample of 'new' frames when the archive is still raw; ``sample == 0``

@@ -51,9 +51,6 @@ import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
-import numpy as np
 
 from pixel_curator import manifest as _manifest_mod
 from pixel_curator.config import load_project as _load_project
@@ -219,8 +216,8 @@ _CONFIG_SCALARS = {
 }
 
 
-def resolve_selection_config(toml_section: Optional[dict] = None,
-                             cli: Optional[dict] = None
+def resolve_selection_config(toml_section: dict | None = None,
+                             cli: dict | None = None
                              ) -> tuple[SelectionConfig, dict, list[str]]:
     """Layered config resolution: profile defaults -> [dreambooth_selector]
     TOML section -> explicit CLI values (``cli`` holds only keys the user
@@ -346,10 +343,10 @@ class QualitySignals:
     expression_quality: float = 0.0
     face_occlusion: float = 0.0
     pose_near_duplicate: bool = False
-    cluster_id: Optional[int] = None
+    cluster_id: int | None = None
     caption_tags: list[str] = field(default_factory=list)
     caption_text: str = ""
-    sequence_id: Optional[str] = None
+    sequence_id: str | None = None
     frame_index: int = 0
 
 
@@ -366,8 +363,8 @@ class SelectionExplanation:
     frame_id: str
     path: str
     accepted: bool
-    quota_label: Optional[str] = None
-    reject_reason: Optional[str] = None
+    quota_label: str | None = None
+    reject_reason: str | None = None
     score: float = 0.0
 
 
@@ -454,14 +451,14 @@ def _quality_factors(s: QualitySignals) -> dict[str, float]:
 
 
 def compute_quality_base(s: QualitySignals,
-                         weights: Optional[dict] = None) -> float:
+                         weights: dict | None = None) -> float:
     w = weights if weights is not None else QUALITY_WEIGHT_DEFAULTS
     factors = _quality_factors(s)
     return sum(w.get(k, 0.0) * v for k, v in factors.items())
 
 
 def compute_nsfw_total(n: NSFWSignals, mode: str, arousal_boost: float = 1.0,
-                       mode_weights: Optional[dict] = None) -> float:
+                       mode_weights: dict | None = None) -> float:
     w = (mode_weights
          or NSFW_MODE_WEIGHTS.get(mode, NSFW_MODE_WEIGHTS["explicit_heavy"]))
     # arousal boost multiplies the arousal component before blending
@@ -700,7 +697,7 @@ def select_frames(cands: list[QualitySignals], config: SelectionConfig):
     exclude_norm = [_norm(t) for t in config.exclude_tags if _norm(t)]
     require_norm = [_norm(t) for t in config.require_any_tags if _norm(t)]
 
-    def _matched_exclude(tags: list[str]) -> Optional[str]:
+    def _matched_exclude(tags: list[str]) -> str | None:
         for t in tags:
             n = _norm(t)
             for rule in exclude_norm:
@@ -802,7 +799,7 @@ def select_frames(cands: list[QualitySignals], config: SelectionConfig):
                 remaining -= slots
             quota_buckets[q.label] = {"slots": slots, "filled": 0, "min_score": q.min_score}
 
-    def _find_quota_bucket(intensity_label: str) -> Optional[str]:
+    def _find_quota_bucket(intensity_label: str) -> str | None:
         """Match a frame's intensity to a quota bucket."""
         if "any" in quota_buckets:
             return "any"
@@ -994,7 +991,7 @@ def write_outputs(
     config: SelectionConfig,
     output_path: Path,
     apply: bool = False,
-    manifest_base: Optional[Path] = None,
+    manifest_base: Path | None = None,
 ) -> dict:
     output_path.mkdir(parents=True, exist_ok=True)
 

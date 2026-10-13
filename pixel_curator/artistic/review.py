@@ -13,8 +13,10 @@ Non-destructive: review updates rewrite only review_manifest.json.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 REVIEW_STATUSES = ("unreviewed", "selected", "needs_refinement",
                    "rejected", "strong_candidate", "final_candidate")
@@ -69,6 +71,7 @@ def list_batches(output_base: Path) -> list[dict]:
         try:
             plan = json.loads(bm.read_text(encoding="utf-8"))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
         rv = _load_review(d, create=False)
         items = (plan.get("summary", {}).get("total_items")
@@ -85,7 +88,7 @@ def list_batches(output_base: Path) -> list[dict]:
     return out
 
 
-def _load_review(batch_dir: Path, create: bool = True) -> Optional[dict]:
+def _load_review(batch_dir: Path, create: bool = True) -> dict | None:
     rp = Path(batch_dir) / "review_manifest.json"
     if rp.exists():
         return json.loads(rp.read_text(encoding="utf-8"))
@@ -118,8 +121,8 @@ def load_batch_manifest(batch_dir: Path) -> dict:
 
 
 def mark_item(batch_dir: Path, item_id: str,
-              status: Optional[str] = None,
-              tags: Optional[list[str]] = None,
+              status: str | None = None,
+              tags: list[str] | None = None,
               notes: str = "",
               next_action: str = "") -> dict:
     """Update one item's review entry; returns the updated entry."""
@@ -188,7 +191,7 @@ def _guidance_completeness(plan: dict) -> float:
 
 def select_best_figure_study_variant(
         batch_manifest: dict,
-        review_manifest: Optional[dict] = None) -> dict:
+        review_manifest: dict | None = None) -> dict:
     """Score every planned item and return the strongest candidate.
 
     Scoring (deterministic, metric-driven): identity preservation

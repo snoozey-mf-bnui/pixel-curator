@@ -9,7 +9,6 @@ score.  Pure stdlib; block weights come from the base-model profile.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .lora_explorer import FAMILY_WEIGHT_RANGES, LoraCard
 
@@ -87,7 +86,7 @@ class StackRecommendation:
 @dataclass
 class ResolvedLoraStack:
     base_model: str
-    identity_anchor: Optional[LoraStackItem]
+    identity_anchor: LoraStackItem | None
     concept_loras: list[LoraStackItem] = field(default_factory=list)
     warnings: list[StackWarning] = field(default_factory=list)
     total_concept_strength: float = 0.0
@@ -120,10 +119,10 @@ def _role_for_family(family: str) -> str:
 
 
 def resolve_stack(cards: list[LoraCard],
-                  weights: Optional[dict[str, float]] = None,
-                  base_model: Optional[str] = None,
+                  weights: dict[str, float] | None = None,
+                  base_model: str | None = None,
                   normalize: bool = True,
-                  pinned: Optional[set] = None) -> ResolvedLoraStack:
+                  pinned: set | None = None) -> ResolvedLoraStack:
     """Resolve a selected set of LoRAs into an explained, identity-first
     stack.
 

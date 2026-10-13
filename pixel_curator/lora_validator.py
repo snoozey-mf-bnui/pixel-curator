@@ -29,9 +29,8 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger("redresser.lora_validator")
 
@@ -63,7 +62,7 @@ class LoraItem:
 class _Parsed:
     base: str                     # name without the trailing :weight
     weight: float
-    weight_warning: Optional[str] = None
+    weight_warning: str | None = None
 
 
 def _split_weight(entry: str) -> _Parsed:
@@ -178,7 +177,7 @@ class LoraStackValidator:
         self.refresh_index()
 
     # -- validation ----------------------------------------------------------
-    def _match(self, base: str) -> tuple[Optional[dict], str]:
+    def _match(self, base: str) -> tuple[dict | None, str]:
         """Resolve a parsed base name to an on-disk record. Returns
         ``(record, how)`` where how is 'exact' (matched the name as-typed),
         'normalized' (matched after bracket-strip / case / extension /

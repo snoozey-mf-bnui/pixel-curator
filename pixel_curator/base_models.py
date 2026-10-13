@@ -8,7 +8,6 @@ pixel-curator.toml retunes the whole studio.  Pure stdlib.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Profiles.  Block weights are te/down/mid/up multipliers used both by the
@@ -124,7 +123,7 @@ PROFILES: dict[str, dict] = {
 DEFAULT_PROFILE = "cyberrealistic_pony"   # studio standard as of v3.1
 
 
-def detect_profile(base_model: Optional[str]) -> dict:
+def detect_profile(base_model: str | None) -> dict:
     """Resolve a checkpoint path/name to a profile (never raises)."""
     name = Path(base_model).stem.lower() if base_model else ""
     if "cyberrealistic" in name:
@@ -136,7 +135,7 @@ def detect_profile(base_model: Optional[str]) -> dict:
     return PROFILES[DEFAULT_PROFILE]
 
 
-def checkpoint_label(base_model: Optional[str]) -> Optional[str]:
+def checkpoint_label(base_model: str | None) -> str | None:
     """Derive the Playground checkpoint-dropdown label ('stem  [ARCH]')."""
     if not base_model:
         return None
@@ -168,8 +167,8 @@ def blocks_string(blocks: dict) -> str:
 
 
 def preset_payload(profile: dict, trigger: str,
-                   base_model: Optional[str] = None,
-                   loras: Optional[list] = None) -> dict:
+                   base_model: str | None = None,
+                   loras: list | None = None) -> dict:
     """Complete, ready-to-load Playground preset body (callers add metadata)."""
     return {
         "checkpoint": checkpoint_label(base_model),

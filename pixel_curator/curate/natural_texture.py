@@ -19,15 +19,15 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict
-import numpy as np
+from dataclasses import asdict, dataclass, field
+
 import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "high_freq_energy": 0.40,
     "texture_consistency": 0.40,
     "edge_density": 0.20,
@@ -39,13 +39,13 @@ DEFAULT_MAX_LAPLACIAN_VAR = 1500.0  # Tunable: represents "extremely high detail
 @dataclass
 class NaturalTextureScores:
     """Container for natural texture metrics with serialization capabilities."""
-    high_freq_energy: Optional[float] = None
-    texture_consistency: Optional[float] = None
-    edge_density: Optional[float] = None
-    natural_detail_score: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    high_freq_energy: float | None = None
+    texture_consistency: float | None = None
+    edge_density: float | None = None
+    natural_detail_score: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -55,7 +55,7 @@ class NaturalTextureScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -66,22 +66,22 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _to_grayscale(image: np.ndarray) -> Optional[np.ndarray]:
+def _to_grayscale(image: np.ndarray) -> np.ndarray | None:
     """Converts any image array (BGR/RGB/Gray) to grayscale."""
     if image is None or image.size == 0:
         return None
-    
+
     # If it's already 2D, it's grayscale
     if len(image.shape) == 2:
         return image
-        
+
     # If it's 3D, convert (assuming BGR or RGB, same result for grayscale conversion)
     elif len(image.shape) == 3:
         if image.shape[2] == 3:
             return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         elif image.shape[2] == 4:
             return cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
-            
+
     logger.warning(f"Unexpected image shape: {image.shape}")
     return None
 
@@ -102,11 +102,11 @@ def compute_high_frequency_energy(gray: np.ndarray) -> float:
     """
     if gray is None or gray.size == 0:
         return 0.0
-        
+
     # Ensure uint8 for standard Laplacian
     if gray.dtype != np.uint8:
         gray = (gray * 255).astype(np.uint8) if gray.max() <= 1.0 else gray.astype(np.uint8)
-        
+
     lap = cv2.Laplacian(gray, cv2.CV_64F)
     return float(np.var(lap))
 
@@ -122,23 +122,23 @@ def compute_texture_consistency(gray: np.ndarray, window_size: int = 32) -> floa
 
     # Convert to float32 for precise local variance calculation
     gray_f = gray.astype(np.float32)
-    
+
     # Use OpenCV's boxFilter for O(1) performance instead of nested for-loops
     ksize = (window_size, window_size)
     mean = cv2.boxFilter(gray_f, cv2.CV_32F, ksize, normalize=True)
     sq_mean = cv2.boxFilter(gray_f * gray_f, cv2.CV_32F, ksize, normalize=True)
-    
+
     # Variance = E[X^2] - (E[X])^2
     variance = sq_mean - (mean * mean)
     local_std = np.sqrt(np.maximum(variance, 0.0))
-    
+
     # Global consistency metric
     mean_local_std = float(np.mean(local_std))
     std_local_std = float(np.std(local_std))
-    
+
     if mean_local_std < 1e-6:
         return 0.0  # Completely flat image
-        
+
     # Consistency = 1.0 when std is 0, drops as std increases relative to mean
     consistency = 1.0 - min(1.0, std_local_std / (mean_local_std + 1e-6))
     return consistency
@@ -158,13 +158,13 @@ def compute_edge_density(gray: np.ndarray) -> float:
     lower = int(max(0, 0.66 * v))
     upper = int(min(255, 1.33 * v))
     edges = cv2.Canny(gray, lower, upper)
-    
+
     return float(np.count_nonzero(edges) / edges.size)
 
 
 def compute_natural_texture(
     image: np.ndarray,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
     window_size: int = 32
 ) -> NaturalTextureScores:
     """

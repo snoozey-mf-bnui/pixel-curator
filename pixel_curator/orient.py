@@ -24,10 +24,13 @@ real backend (`make_insightface_detector`) is lazy/optional and never raises.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 EXIF_ORIENTATION_TAG = 0x0112
@@ -117,6 +120,7 @@ def exif_normalized_rgb(path):
         rgb, _, _ = load_exif_normalized(path)
         return rgb
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -142,7 +146,7 @@ def _rotate_file(path: Path, ccw: int, cfg: OrientConfig) -> None:
 # Per-image processing
 # ---------------------------------------------------------------------------
 
-Detector = Callable[[object], Optional[tuple]]   # pil_rgb -> (kps, score) | None
+Detector = Callable[[object], tuple | None]   # pil_rgb -> (kps, score) | None
 
 
 def process_image(path, detector: Detector, cfg: OrientConfig) -> dict:
@@ -221,7 +225,7 @@ def process_image(path, detector: Detector, cfg: OrientConfig) -> dict:
 # ---------------------------------------------------------------------------
 
 def run_orientation(paths, detector: Detector, cfg: OrientConfig, *,
-                    manifest_dir: Optional[Path] = None) -> dict:
+                    manifest_dir: Path | None = None) -> dict:
     """Process a list of image paths. Writes a JSON manifest when apply=True.
     Returns a summary dict with the manifest path."""
     changes = []
@@ -265,7 +269,7 @@ def run_orientation(paths, detector: Detector, cfg: OrientConfig, *,
     return manifest
 
 
-def undo_from_manifest(manifest_path, cfg: Optional[OrientConfig] = None) -> dict:
+def undo_from_manifest(manifest_path, cfg: OrientConfig | None = None) -> dict:
     """Reverse every applied rotation recorded in a manifest. Exact inverse:
     a frame rotated +R is rotated back by (360-R). (EXIF normalization, being
     benign, is intentionally not reversed.)"""
@@ -313,7 +317,6 @@ def make_insightface_detector(prj=None):
     """Return (detector, reason). detector(pil_rgb)->(kps,score)|None when
     InsightFace is available, else (None, reason)."""
     try:
-        import numpy as np
         from insightface.app import FaceAnalysis
     except Exception as exc:
         return None, f"InsightFace unavailable ({exc}); install 'pixel-curator[ai]'"
@@ -339,6 +342,7 @@ def make_insightface_detector(prj=None):
             faces.sort(key=lambda f: getattr(f, "det_score", 0.0), reverse=True)
             return faces[0].kps, float(getattr(faces[0], "det_score", 1.0))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
 
     return detect, None

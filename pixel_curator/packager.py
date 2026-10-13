@@ -12,13 +12,12 @@ import logging
 import os
 import shutil
 from collections import defaultdict
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import PackageConfig
 from .util import now_iso, safe_slug, setup_logging
-
 
 # -----------------------------
 # Selection helpers (pure, testable)

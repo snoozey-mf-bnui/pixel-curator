@@ -17,12 +17,14 @@ raises for ordinary input.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "kohya_package_v1"
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
@@ -138,7 +140,7 @@ class KohyaPackageReport:
         return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
 
 
-def registry_files(report: "KohyaPackageReport") -> list:
+def registry_files(report: KohyaPackageReport) -> list:
     """dataset_version_files entries for a packaged report (Phase 2).
 
     Gives kohya packages the same path-based membership as other folder
@@ -169,6 +171,7 @@ def load_curated_dataset(dataset_dir) -> list:
             if samples:
                 return list(samples)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     # fallback: scan images/ + captions/
     out = []
@@ -536,6 +539,7 @@ def _make_zip(output_dir: Path, cfg: KohyaPackageConfig) -> str | None:
                 zf.writestr(zi, p.read_bytes())
         return str(zip_path)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 

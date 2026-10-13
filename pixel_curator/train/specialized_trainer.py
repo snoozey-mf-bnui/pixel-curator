@@ -31,8 +31,8 @@ from datetime import datetime
 from pathlib import Path
 
 from . import base_profile as bp
-from . import kohya_config_builder as kcb
 from . import core_identity_trainer as cit
+from . import kohya_config_builder as kcb
 
 log = logging.getLogger("redresser.specialized_trainer")
 

@@ -19,18 +19,21 @@ parsing and bookkeeping identical.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 import time
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Optional
 
 from .. import manifest
 from ..config import Project
 from ..util import now_iso, safe_slug, setup_logging
 from .presets import COMMON_ARGS, COMMON_FLAGS, MPS_ENV, PRESETS
+
+logger = logging.getLogger(__name__)
 
 # tqdm-ish progress: "steps:  3%|..| 80/2500 [00:41<20:00, loss=0.0911]"
 RE_STEP = re.compile(r"(\d+)\s*/\s*(\d+)")
@@ -201,11 +204,11 @@ def train_generator(prj: Project, cfg: TrainConfig) -> Generator[str, None, None
            f"lr {preset['unet_lr']}, batch {preset['batch_size']}, "
            f"{preset['epochs']} epochs)\nlog: {log_path}\n")
 
-    proc: Optional[subprocess.Popen] = None
+    proc: subprocess.Popen | None = None
     status = "failed"
-    error: Optional[str] = None
+    error: str | None = None
     step = total = epoch = 0
-    last_loss: Optional[float] = None
+    last_loss: float | None = None
     last_yield = 0.0
     last_disk_check = time.time()
     disk_warned = False
@@ -315,6 +318,7 @@ def train_generator(prj: Project, cfg: TrainConfig) -> Generator[str, None, None
                 json.dumps(meta, indent=2), encoding="utf-8"
             )
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     if status == "completed":

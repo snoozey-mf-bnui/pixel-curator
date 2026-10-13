@@ -10,7 +10,6 @@ rather than raising an exception.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 # Score -> professional level label
 READINESS_LEVELS = (
@@ -310,9 +309,12 @@ def run_readiness(conn, prj, run_name: str) -> dict:
 def batch_readiness(output_base: Path, batch_id: str) -> dict:
     """Score whether a figure-study batch is ready for review/export.
     File-backed; never raises on missing assets."""
-    from ..artistic.review import (find_batch_dir, load_batch_manifest,
-                                   review_summary,
-                                   select_best_figure_study_variant)
+    from ..artistic.review import (
+        find_batch_dir,
+        load_batch_manifest,
+        review_summary,
+        select_best_figure_study_variant,
+    )
     bd = find_batch_dir(output_base, batch_id)
     plan = load_batch_manifest(bd)
     summary = review_summary(bd)

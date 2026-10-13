@@ -29,9 +29,9 @@ Engine guarantees:
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from . import manifest
 from .config import Project
@@ -366,12 +366,12 @@ class RecipePipelineConfig:
     pipeline: str = "curation"
     only: list[str] = field(default_factory=list)     # run just these stages
     skip: list[str] = field(default_factory=list)
-    from_stage: Optional[str] = None
-    until_stage: Optional[str] = None
+    from_stage: str | None = None
+    until_stage: str | None = None
     gates: list[str] = field(default_factory=list)    # extra pause points
     overrides: list[str] = field(default_factory=list)  # "stage.key=value"
     dry_run: bool = False                              # plan only
-    start_stage: Optional[str] = None                  # internal (resume)
+    start_stage: str | None = None                  # internal (resume)
 
 
 def _parse_override(spec: str) -> tuple[str, str, object]:
@@ -476,8 +476,8 @@ def resolve_pipeline(prj: Project, cfg: RecipePipelineConfig
 # ---------------------------------------------------------------------------
 
 def save_recipe_state(conn, cfg: RecipePipelineConfig, plan: dict,
-                      completed: list[dict], next_stage: Optional[str],
-                      error: Optional[str] = None) -> None:
+                      completed: list[dict], next_stage: str | None,
+                      error: str | None = None) -> None:
     manifest.meta_set(conn, RECIPE_STATE_KEY, {
         "pipeline": cfg.pipeline,
         "stages": [s for s, _, _ in plan["stages"]],
@@ -492,7 +492,7 @@ def save_recipe_state(conn, cfg: RecipePipelineConfig, plan: dict,
     })
 
 
-def load_recipe_state(conn) -> Optional[dict]:
+def load_recipe_state(conn) -> dict | None:
     return manifest.meta_get(conn, RECIPE_STATE_KEY)
 
 

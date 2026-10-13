@@ -38,12 +38,14 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional, Tuple
 
 from ..config import CaptionConfig
 
-TaggerFn = Callable[[Path], Optional[list]]
+logger = logging.getLogger(__name__)
+
+TaggerFn = Callable[[Path], list | None]
 
 VALID_TAGGERS = ("wd14", "mps", "florence")
 
@@ -56,19 +58,19 @@ _WD14_DEFAULT_REPO = "SmilingWolf/wd-swinv2-tagger-v3"
 # ---------------------------------------------------------------------------
 # Backend probes (cheap, import-only)
 # ---------------------------------------------------------------------------
-def mps_backend_available() -> Tuple[bool, str]:
+def mps_backend_available() -> tuple[bool, str]:
     try:
+        import timm  # noqa: F401
         import torch  # noqa: F401
-        import timm   # noqa: F401
     except Exception as exc:
         return False, f"torch/timm not installed ({exc})"
     return True, "ok"
 
 
-def florence_backend_available() -> Tuple[bool, str]:
+def florence_backend_available() -> tuple[bool, str]:
     try:
-        import torch          # noqa: F401
-        import transformers   # noqa: F401
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
     except Exception as exc:
         return False, f"torch/transformers not installed ({exc})"
     return True, "ok"
@@ -77,7 +79,7 @@ def florence_backend_available() -> Tuple[bool, str]:
 # ---------------------------------------------------------------------------
 # wd14 (existing behavior, delegated untouched)
 # ---------------------------------------------------------------------------
-def _make_wd14(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
+def _make_wd14(cfg: CaptionConfig) -> tuple[TaggerFn, str]:
     from . import wd14 as _wd14
 
     def tag(path: Path):
@@ -94,7 +96,7 @@ def _make_wd14(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
 # ---------------------------------------------------------------------------
 # mps (torch + timm, WD14-v3 weights on the GPU)
 # ---------------------------------------------------------------------------
-def _make_mps(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
+def _make_mps(cfg: CaptionConfig) -> tuple[TaggerFn, str]:
     import csv
 
     import timm
@@ -128,6 +130,7 @@ def _make_mps(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
                 canvas.paste(im, ((side - w) // 2, (side - h) // 2))
                 x = transform(canvas).unsqueeze(0)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
         x = x[:, [2, 1, 0]]                    # RGB -> BGR (WD14 convention)
         with torch.inference_mode():
@@ -167,7 +170,7 @@ def prose_to_pseudo_tags(text: str, max_phrases: int = 32) -> list:
     return out
 
 
-def _make_florence(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
+def _make_florence(cfg: CaptionConfig) -> tuple[TaggerFn, str]:
     from .vlm import make_florence_captioner
 
     caption_fn, model_id = make_florence_captioner()
@@ -180,6 +183,7 @@ def _make_florence(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
             with Image.open(path) as im:
                 img = ImageOps.exif_transpose(im).convert("RGB")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
         text = caption_fn(img)
         if not text:
@@ -195,7 +199,7 @@ def _make_florence(cfg: CaptionConfig) -> Tuple[TaggerFn, str]:
 _FACTORIES = {"wd14": _make_wd14, "mps": _make_mps, "florence": _make_florence}
 
 
-def resolve_tagger(cfg: CaptionConfig) -> Tuple[TaggerFn, str, str]:
+def resolve_tagger(cfg: CaptionConfig) -> tuple[TaggerFn, str, str]:
     """Build the requested backend; fall back to wd14 with a logged reason.
 
     Returns (tag_fn, banner, actual_name). Raises RuntimeError only when even

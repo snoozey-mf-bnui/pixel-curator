@@ -14,15 +14,16 @@ raises for ordinary input.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Canonical base profile (the project's single allowed named realism base).
 try:
-    from .base_profile import (BASE_PROFILE_NAME, BASE_CHECKPOINT,
-                               BASE_CHECKPOINT_PATH)
+    from .base_profile import BASE_CHECKPOINT, BASE_CHECKPOINT_PATH, BASE_PROFILE_NAME
 except Exception:                                        # pragma: no cover
     BASE_PROFILE_NAME = "CyberRealisticPony Personal Base"
     BASE_CHECKPOINT = "cyberrealisticPony_v180Coreshift.safetensors"
@@ -140,6 +141,7 @@ def _load_json(p: Path) -> dict:
             data = json.loads(p.read_text(encoding="utf-8"))
             return data if isinstance(data, dict) else {}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return {}
 
@@ -427,7 +429,7 @@ def _render_plan_md(recipe: TrainingRecipe) -> str:
          f"| mixed_precision | {c.mixed_precision} |",
          f"| seed | {c.seed} |", "",
          "## Kohya / Colab Files",
-         f"- dataset_config.toml: package `dataset_config.toml`",
+         "- dataset_config.toml: package `dataset_config.toml`",
          f"- kohya_config: kohya_config_{recipe.target}.toml",
          f"- package: {recipe.package_dir or '(build with: package kohya)'}",
          "",
@@ -437,7 +439,7 @@ def _render_plan_md(recipe: TrainingRecipe) -> str:
          f"python -m pixel_curator package kohya --dataset {recipe.dataset_dir} \\",
          f"    --output <PACKAGE_DIR> --mode {recipe.mode} --apply",
          "# 2. Upload the package zip to Colab and point the notebook's",
-         f"#    dataset_config at dataset_config.toml (see colab_runbook.md)",
+         "#    dataset_config at dataset_config.toml (see colab_runbook.md)",
          "```", ""]
     return "\n".join(L)
 

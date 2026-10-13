@@ -16,13 +16,11 @@ first to embed the selected set.
 from __future__ import annotations
 
 import logging
-import math
-from typing import Optional
 
 log = logging.getLogger("pixel_curator.curate.semantic")
 
 _TEXT_CACHE = None
-_TEXT_ERR: Optional[str] = None
+_TEXT_ERR: str | None = None
 
 
 def _load_text_encoder():
@@ -33,8 +31,8 @@ def _load_text_encoder():
     if _TEXT_ERR is not None:
         raise RuntimeError(_TEXT_ERR)
     try:
-        import numpy as np
         import torch
+
         from .diversity import _device
         dev = _device()
         try:

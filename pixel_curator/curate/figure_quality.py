@@ -17,8 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Optional, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -32,7 +31,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "face_sharpness": 0.35,
     "body_proportion": 0.20,
     "occlusion": 0.20,
@@ -46,15 +45,15 @@ DEFAULT_MAX_SHARPNESS = 120.0  # Adjust based on your specific camera/sensor set
 @dataclass
 class FigureQualityScores:
     """Container for figure quality metrics with serialization capabilities."""
-    face_sharpness: Optional[float] = None
-    body_proportion: Optional[float] = None
-    occlusion: Optional[float] = None
-    centering: Optional[float] = None
-    headroom: Optional[float] = None
-    integrity: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    face_sharpness: float | None = None
+    body_proportion: float | None = None
+    occlusion: float | None = None
+    centering: float | None = None
+    headroom: float | None = None
+    integrity: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -64,13 +63,13 @@ class FigureQualityScores:
         return json.dumps(self.to_dict())
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "FigureQualityScores":
+    def from_dict(cls, data: dict) -> FigureQualityScores:
         """Creates a FigureQualityScores instance from a dictionary."""
         valid_keys = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         return cls(**valid_keys)
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -93,8 +92,8 @@ def normalize_face_sharpness(value: float, max_reasonable: float = DEFAULT_MAX_S
 
 
 def compute_integrity(
-    scores: FigureQualityScores, 
-    weights: Dict[str, float] = DEFAULT_WEIGHTS
+    scores: FigureQualityScores,
+    weights: dict[str, float] = DEFAULT_WEIGHTS
 ) -> float:
     """
     Calculate overall subject integrity score using weighted averaging.
@@ -134,15 +133,15 @@ def compute_integrity(
     # Calculate weighted average
     weighted_sum = sum(c * w for c, w in zip(components, used_weights))
     total_weight = sum(used_weights)
-    
+
     return float(weighted_sum / total_weight)
 
 
 # --- Geometric & CV Computation Helpers ---
 
 def calculate_centering(
-    face_bbox: Tuple[int, int, int, int], 
-    img_width: int, 
+    face_bbox: tuple[int, int, int, int],
+    img_width: int,
     img_height: int
 ) -> float:
     """
@@ -152,24 +151,24 @@ def calculate_centering(
     x1, y1, x2, y2 = face_bbox
     face_cx = (x1 + x2) / 2.0
     face_cy = (y1 + y2) / 2.0
-    
+
     img_cx = img_width / 2.0
     img_cy = img_height / 2.0
-    
+
     # Euclidean distance between centers
     distance = math.hypot(face_cx - img_cx, face_cy - img_cy)
-    
+
     # Max possible distance from center is half the diagonal
     max_distance = math.hypot(img_cx, img_cy)
     if max_distance == 0:
         return 0.0
-        
+
     # Closer to center = higher score
     return 1.0 - min(1.0, (distance / max_distance))
 
 
 def calculate_headroom(
-    face_bbox: Tuple[int, int, int, int], 
+    face_bbox: tuple[int, int, int, int],
     img_height: int,
     ideal_ratio: float = 0.15
 ) -> float:
@@ -180,12 +179,12 @@ def calculate_headroom(
     y1 = face_bbox[1]
     headroom_px = y1
     total_height = img_height
-    
+
     if total_height == 0:
         return 0.0
-        
+
     headroom_ratio = headroom_px / total_height
-    
+
     # Using a simple gaussian-like falloff. 1.0 at ideal_ratio, drops off as it moves away.
     # Tune the spread (0.1) based on strictness requirements
     spread = 0.1
@@ -201,16 +200,16 @@ def calculate_face_sharpness(image_array: np.ndarray) -> float:
     if not CV2_AVAILABLE:
         logger.error("OpenCV (cv2) is required to calculate face sharpness but is not installed.")
         return 0.0
-        
+
     if image_array is None or image_array.size == 0:
         return 0.0
-        
+
     # Convert to grayscale if needed
     if len(image_array.shape) == 3:
         gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
     else:
         gray = image_array
-        
+
     # Variance of Laplacian (standard blur detection)
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
     return float(sharpness)
@@ -219,12 +218,12 @@ def calculate_face_sharpness(image_array: np.ndarray) -> float:
 # --- Main Entry Point ---
 
 def compute_figure_quality(
-    face_sharpness: Optional[float] = None,
-    body_proportion: Optional[float] = None,
-    occlusion: Optional[float] = None,
-    centering: Optional[float] = None,
-    headroom: Optional[float] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    face_sharpness: float | None = None,
+    body_proportion: float | None = None,
+    occlusion: float | None = None,
+    centering: float | None = None,
+    headroom: float | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> FigureQualityScores:
     """
     Main entry point. Computes all figure quality metrics and returns
@@ -289,7 +288,7 @@ if __name__ == "__main__":
 
     print("4. Testing Geometry Helpers:")
     # Simulated image: 1920x1080. Face located at top-left-ish
-    mock_bbox = (800, 150, 1100, 450) 
+    mock_bbox = (800, 150, 1100, 450)
     centering = calculate_centering(mock_bbox, 1920, 1080)
     headroom = calculate_headroom(mock_bbox, 1080)
     print(f"   Centering Score: {centering:.4f}")

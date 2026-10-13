@@ -8,13 +8,15 @@ Also provides the dict payloads the legacy ``/api/phase3/*`` routes return.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
+from . import media_support, training_runtime
 from . import model_architecture as arch
-from . import media_support
-from . import training_runtime
-from .training_jobs import TrainingJobStore, default_jobs_path
 from .log_streaming import DEFAULT_MANAGER, discover_recent_logs
+from .training_jobs import TrainingJobStore, default_jobs_path
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,6 +26,7 @@ def status_dir(output_base: str | None = None) -> Path:
         try:
             return Path(output_base).expanduser() / "ui_status"
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return REPO_ROOT / "projects" / "ui_status"
 
@@ -98,6 +101,7 @@ def write_visual_focus_status(output_base: str | None = None) -> dict:
             json.dumps(payload, indent=2, default=str), encoding="utf-8")
         written["visual_focus_summary.json"] = str(d / "visual_focus_summary.json")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -145,6 +149,7 @@ def write_face_consistency_status(output_base: str | None = None) -> dict:
         written["face_consistency_summary.json"] = str(
             d / "face_consistency_summary.json")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -175,6 +180,7 @@ def write_specialized_recipe_status(output_base: str | None = None) -> dict:
         written["specialized_recipe_summary.json"] = str(
             d / "specialized_recipe_summary.json")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -201,6 +207,7 @@ def write_routing_status(output_base: str | None = None) -> dict:
         written["visual_focus_routing_summary.json"] = str(
             d / "visual_focus_routing_summary.json")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -231,6 +238,7 @@ def write_florence_status(output_base: str | None = None) -> dict:
                                              default=str), encoding="utf-8")
             written[name] = str(d / name)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -255,8 +263,10 @@ def write_explorer_status(output_base: str | None = None) -> dict:
                                       encoding="utf-8")
                 written[name] = str(d / name)
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 
@@ -287,8 +297,10 @@ def write_all(output_base: str | None = None) -> dict:
                                                  default=str), encoding="utf-8")
                 written[name] = str(d / name)
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return written
 

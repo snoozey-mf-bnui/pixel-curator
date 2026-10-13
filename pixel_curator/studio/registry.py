@@ -12,7 +12,6 @@ moved or modified.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 IDENTITY_FAMILIES = ("identity", "character")
 
@@ -122,7 +121,7 @@ def _package_assets(output_base: Path) -> list[dict]:
     return out
 
 
-def build_asset_registry(prj, conn=None, output_base: Optional[Path] = None,
+def build_asset_registry(prj, conn=None, output_base: Path | None = None,
                          role: str = "", missing_metadata: bool = False
                          ) -> dict:
     """Assemble the unified asset registry.

@@ -26,10 +26,11 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from . import manifest
 from .util import now_iso
+
+logger = logging.getLogger(__name__)
 
 log = logging.getLogger("pixel_curator.dataset_versioning")
 
@@ -52,7 +53,7 @@ META_LATEST_BY_KIND = "dataset_latest_by_kind"
 # ---------------------------------------------------------------------------
 
 def _distribution(conn: sqlite3.Connection, table: str, column: str,
-                  where: str = "") -> Optional[dict]:
+                  where: str = "") -> dict | None:
     """count/mean/min/median/max for a numeric column. None when empty
     or the table/column does not exist on this schema."""
     clause = (f"{column} IS NOT NULL"
@@ -67,7 +68,8 @@ def _distribution(conn: sqlite3.Connection, table: str, column: str,
             f"SELECT {column} FROM {table} WHERE {clause} "
             f"ORDER BY {column} LIMIT 1 OFFSET ?", (int(n) // 2,)
         ).fetchone()[0]
-        rnd = lambda v: round(float(v), 4) if v is not None else None
+        def rnd(v):
+            return round(float(v), 4) if v is not None else None
         return {"count": int(n), "mean": rnd(mean), "min": rnd(lo),
                 "median": rnd(median), "max": rnd(hi)}
     except sqlite3.OperationalError:
@@ -166,7 +168,7 @@ def next_version(conn: sqlite3.Connection) -> int:
 
 
 def validate_parent(conn: sqlite3.Connection,
-                    parent_version: Optional[int]) -> Optional[str]:
+                    parent_version: int | None) -> str | None:
     """Return a warning string when the requested parent does not exist."""
     if parent_version is None:
         return None
@@ -183,14 +185,14 @@ def register_version(conn: sqlite3.Connection, *,
                      name: str,
                      directory: Path | str,
                      note: str = "",
-                     parent_version: Optional[int] = None,
-                     params: Optional[dict] = None,
+                     parent_version: int | None = None,
+                     params: dict | None = None,
                      image_count: int = 0,
                      val_count: int = 0,
-                     files: Optional[list[dict]] = None,
-                     curation: Optional[dict] = None,
-                     version: Optional[int] = None,
-                     content_hash: Optional[str] = None) -> dict:
+                     files: list[dict] | None = None,
+                     curation: dict | None = None,
+                     version: int | None = None,
+                     content_hash: str | None = None) -> dict:
     """Insert a version row (+ optional path membership). Returns the record.
 
     ``files`` entries are dicts with at least ``rel_path``; ``source_path``
@@ -266,7 +268,7 @@ def _update_latest_meta(conn: sqlite3.Connection, record: dict) -> None:
 
 
 def write_version_sidecar(version_dir: Path | str,
-                          record: dict) -> Optional[Path]:
+                          record: dict) -> Path | None:
     """Write ``version.json`` inside the dataset folder. Never raises."""
     try:
         d = Path(version_dir)
@@ -286,11 +288,11 @@ def register_folder_export(output_base: Path | str, *,
                            kind: str,
                            name: str,
                            export_dir: Path | str,
-                           files: Optional[list[dict]] = None,
+                           files: list[dict] | None = None,
                            image_count: int = 0,
-                           params: Optional[dict] = None,
+                           params: dict | None = None,
                            note: str = "",
-                           parent_version: Optional[int] = None) -> dict:
+                           parent_version: int | None = None) -> dict:
     """Register a folder-based export into the shared registry.
 
     Safe entry point for export pipelines: opens its own manifest
@@ -331,7 +333,7 @@ _ROW_KEYS = ("version", "name", "kind", "built_at", "image_count",
              "val_count", "dir", "note", "parent_version", "content_hash")
 
 
-def get_version(conn: sqlite3.Connection, version: int) -> Optional[dict]:
+def get_version(conn: sqlite3.Connection, version: int) -> dict | None:
     try:
         row = conn.execute(
             "SELECT version, recipe_name, kind, built_at, image_count, "
@@ -358,7 +360,7 @@ def lineage_chain(conn: sqlite3.Connection, version: int) -> list[dict]:
     """
     chain: list[dict] = []
     seen: set[int] = set()
-    current: Optional[int] = int(version)
+    current: int | None = int(version)
     while current is not None and current not in seen:
         seen.add(current)
         rec = get_version(conn, current)
@@ -424,7 +426,7 @@ def _change_summary(conn: sqlite3.Connection, rec: dict) -> str:
 
 
 def curation_delta(conn: sqlite3.Connection, version: int,
-                   parent_version: Optional[int]) -> Optional[dict]:
+                   parent_version: int | None) -> dict | None:
     """Structured delta between the curation snapshots of a version and
     its parent (how the curated pool evolved between the two exports).
 
@@ -436,7 +438,7 @@ def curation_delta(conn: sqlite3.Connection, version: int,
     if not a or not b:
         return None
 
-    def _num(d: Optional[dict], *keys) -> int:
+    def _num(d: dict | None, *keys) -> int:
         cur = d or {}
         for k in keys:
             cur = (cur or {}).get(k) if isinstance(cur, dict) else None
@@ -492,7 +494,7 @@ def _curation_delta_summary(conn: sqlite3.Connection, rec: dict) -> str:
 
 
 def version_history(conn: sqlite3.Connection,
-                    name: Optional[str] = None) -> list[dict]:
+                    name: str | None = None) -> list[dict]:
     """All registered versions (optionally filtered by recipe/export name),
     each with membership counts and a change summary vs its parent."""
     try:
@@ -519,7 +521,7 @@ def version_history(conn: sqlite3.Connection,
 
 
 def get_curation_snapshot(conn: sqlite3.Connection,
-                          version: int) -> Optional[dict]:
+                          version: int) -> dict | None:
     try:
         row = conn.execute(
             "SELECT curation_json FROM datasets WHERE version = ?",
@@ -531,6 +533,7 @@ def get_curation_snapshot(conn: sqlite3.Connection,
     try:
         return json.loads(row[0])
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 

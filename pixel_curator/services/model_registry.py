@@ -7,11 +7,14 @@ filesystem + metadata; never downloads or opens model weights.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from . import model_architecture as arch
+
+logger = logging.getLogger(__name__)
 
 MODEL_EXTS = (".safetensors", ".ckpt", ".pt", ".pth")
 LORA_HINT = ("lora", "lyco", "locon")
@@ -82,6 +85,7 @@ def discover_models(*dirs, limit: int = 500) -> list:
                     if len(out) >= limit:
                         return out
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
     return out
 
@@ -134,6 +138,7 @@ def write_registry_json(models: list, path) -> None:
                 for m in models]
         p.write_text(json.dumps({"models": data}, indent=2), encoding="utf-8")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
 

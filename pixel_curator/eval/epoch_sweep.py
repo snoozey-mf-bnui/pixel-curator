@@ -12,9 +12,9 @@ CLI:  pixel-curator pick-epoch --lora-base ohwx_character_v012 --weights 0.6,0.7
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from .. import manifest
 from ..config import Project
@@ -39,8 +39,8 @@ class EpochSweepConfig:
     prompts: tuple[str, ...] = DEFAULT_PROMPTS
     seeds: tuple[int, ...] = DEFAULT_SEEDS
     pony_prefix: bool = True
-    generate_fn: Optional[Callable] = None   # test hook: (prompt, seed, lora_stem, weight)->png bytes
-    score_fn: Optional[Callable] = None       # test hook: (png_path)->float|None
+    generate_fn: Callable | None = None   # test hook: (prompt, seed, lora_stem, weight)->png bytes
+    score_fn: Callable | None = None       # test hook: (png_path)->float|None
 
 
 _EPOCH_RE = re.compile(r"-0*(\d+)\.safetensors$")
@@ -88,7 +88,7 @@ def parse_weights(spec: str) -> tuple[float, ...]:
     return tuple(out) or (0.75,)
 
 
-def _mean(vals: list[float]) -> Optional[float]:
+def _mean(vals: list[float]) -> float | None:
     v = [x for x in vals if x is not None]
     return round(sum(v) / len(v), 4) if v else None
 
@@ -96,7 +96,7 @@ def _mean(vals: list[float]) -> Optional[float]:
 def epoch_sweep_generator(prj: Project, cfg: EpochSweepConfig
                           ) -> Generator[str, None, None]:
     """Score each epoch x weight; yield progress, then the ranking + best pick."""
-    from .matrix import likeness_scorer, assemble_grid, compose_prompt, MatrixConfig
+    from .matrix import assemble_grid, compose_prompt, likeness_scorer
 
     conn = manifest.connect(cfg.output_base)
     scorer = cfg.score_fn or (likeness_scorer(conn) if cfg.generate_fn is None else None)

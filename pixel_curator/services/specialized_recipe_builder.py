@@ -25,9 +25,8 @@ import json
 import re
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
 
 try:
     from pixel_curator import nsfw_router
@@ -335,7 +334,7 @@ def _version_name(primary: str, image_path: str) -> str:
 # ============================ core routing ==================================
 
 def assign_image_to_recipes(rec: dict,
-                            config: Optional[SpecializedRecipeBuilderConfig] = None
+                            config: SpecializedRecipeBuilderConfig | None = None
                             ) -> ImageAssignment:
     """Route a single image record to specialized recipes.
 
@@ -518,7 +517,7 @@ def _detect_architecture(assignments: list, cfg: SpecializedRecipeBuilderConfig
 def build_specialized_recipe_plan(
         records: list,
         output_dir=None,
-        config: Optional[SpecializedRecipeBuilderConfig] = None
+        config: SpecializedRecipeBuilderConfig | None = None
         ) -> SpecializedRecipePlan:
     """Build a specialized recipe plan from a list of image records.
 
@@ -766,15 +765,15 @@ def render_recipe_card(plan: SpecializedRecipePlan) -> str:
     """Render a short markdown summary card for the plan."""
     s = plan.summary
     lines = [
-        f"# Specialized Recipe Plan",
-        f"",
+        "# Specialized Recipe Plan",
+        "",
         f"- **plan_id**: `{plan.plan_id}`",
         f"- **architecture**: {plan.architecture}",
         f"- **total images**: {s.get('total_images', 0)}",
         f"- **blocked**: {s.get('blocked_count', 0)}",
-        f"",
-        f"## Images by primary recipe",
-        f"",
+        "",
+        "## Images by primary recipe",
+        "",
     ]
     for recipe, count in sorted(s.get("images_by_primary_recipe", {}).items()):
         lines.append(f"- **{recipe}**: {count}")
@@ -823,7 +822,7 @@ def _should_route_nsfw(tags: list) -> bool:
 
 def build_specialized_recipe(visual_focus_result: dict,
                              existing_tags: list = None,
-                             config: Optional[RecipeConfig] = None
+                             config: RecipeConfig | None = None
                              ) -> SpecializedRecipe:
     """Legacy single-image recipe builder — kept for backwards compat."""
     rec = {"visual_focus": visual_focus_result,
@@ -842,7 +841,7 @@ def build_specialized_recipe(visual_focus_result: dict,
 
 
 def build_recipe_from_tags(tags: list,
-                           config: Optional[RecipeConfig] = None
+                           config: RecipeConfig | None = None
                            ) -> SpecializedRecipe:
     """Legacy tag-only recipe builder — kept for backwards compat."""
     rec = {"wd14_tags": tags}

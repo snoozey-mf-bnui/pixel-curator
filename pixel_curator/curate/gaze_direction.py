@@ -19,15 +19,14 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 
 @dataclass
@@ -46,13 +45,13 @@ class GazeDirectionScores:
     """Container for gaze direction classification results with serialization."""
     gaze_direction: str = "unknown"
     confidence: float = 0.0
-    eye_contact_score: Optional[float] = None
-    head_yaw: Optional[float] = None       # Negative = Left, Positive = Right
-    head_pitch: Optional[float] = None     # Negative = Down, Positive = Up
-    iris_offset: Optional[float] = None    # 0.0 (centered) to 1.0 (fully looking left/right)
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    eye_contact_score: float | None = None
+    head_yaw: float | None = None       # Negative = Left, Positive = Right
+    head_pitch: float | None = None     # Negative = Down, Positive = Up
+    iris_offset: float | None = None    # 0.0 (centered) to 1.0 (fully looking left/right)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -62,7 +61,7 @@ class GazeDirectionScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -70,14 +69,14 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _dist(p1: Point | None, p2: Point | None) -> float:
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
 # --- Geometric Estimation Helpers ---
 
-def estimate_head_pose(landmarks: Dict[str, Point]) -> Tuple[Optional[float], Optional[float]]:
+def estimate_head_pose(landmarks: dict[str, Point]) -> tuple[float | None, float | None]:
     """
     Estimates head yaw (left/right) and pitch (up/down) in approximate degrees.
     """
@@ -95,7 +94,7 @@ def estimate_head_pose(landmarks: Dict[str, Point]) -> Tuple[Optional[float], Op
     # Compare horizontal distance from nose to left eye vs nose to right eye.
     dist_left = abs(nose_tip[0] - left_eye[0])
     dist_right = abs(right_eye[0] - nose_tip[0])
-    
+
     if dist_left + dist_right < 1e-6:
         yaw = 0.0
     else:
@@ -108,24 +107,24 @@ def estimate_head_pose(landmarks: Dict[str, Point]) -> Tuple[Optional[float], Op
     # Compare vertical distance from eyes to nose vs nose to mouth.
     eye_center_y = (left_eye[1] + right_eye[1]) / 2.0
     mouth_center_y = (mouth_left[1] + mouth_right[1]) / 2.0
-    
+
     dist_eye_nose = abs(eye_center_y - nose_tip[1])
     dist_nose_mouth = abs(mouth_center_y - nose_tip[1])
-    
+
     if dist_nose_mouth < 1e-6:
         pitch = 0.0
     else:
-        # Typical neutral ratio is ~0.8. 
+        # Typical neutral ratio is ~0.8.
         # Looking down: nose gets closer to mouth (ratio drops).
         # Looking up: nose gets further from mouth (ratio rises).
         ratio = dist_eye_nose / dist_nose_mouth
         # Map ratio deviation to degrees (heuristic mapping)
-        pitch = (ratio - 0.8) * 90.0 
+        pitch = (ratio - 0.8) * 90.0
 
     return float(yaw), float(pitch)
 
 
-def estimate_iris_offset(landmarks: Dict[str, Point]) -> Optional[float]:
+def estimate_iris_offset(landmarks: dict[str, Point]) -> float | None:
     """
     Estimates how far the iris is offset from the center of the eye.
     Useful for detecting gaze aversion without head movement.
@@ -139,8 +138,8 @@ def estimate_iris_offset(landmarks: Dict[str, Point]) -> Optional[float]:
     for side in ["left", "right"]:
         eye = landmarks[f"{side}_eye"]
         iris = landmarks[f"{side}_iris"]
-        
-        # We need eye width to normalize the offset. 
+
+        # We need eye width to normalize the offset.
         # If we don't have eye corners, we can approximate eye width using the eye point itself,
         # but ideally we use left/right eye corners. Let's fallback to standard distance.
         # For this heuristic, we assume `left_eye` and `right_eye` are the centers of the eyes.
@@ -148,12 +147,12 @@ def estimate_iris_offset(landmarks: Dict[str, Point]) -> Optional[float]:
         # We will estimate eye width as the distance between the two eyes * 0.3.
         eye_dist = _dist(landmarks["left_eye"], landmarks["right_eye"])
         if eye_dist < 1e-6: continue
-        
+
         eye_width_approx = eye_dist * 0.3
-        
+
         offset = _dist(eye, iris) / eye_width_approx
         offsets.append(offset)
-        
+
     if not offsets: return None
     return float(np.mean(offsets))
 
@@ -161,12 +160,12 @@ def estimate_iris_offset(landmarks: Dict[str, Point]) -> Optional[float]:
 # --- Main Logic ---
 
 def classify_gaze_direction(
-    eye_contact_score: Optional[float] = None,
-    head_tilt: Optional[float] = None,
-    looking_down: Optional[bool] = None,
-    head_yaw: Optional[float] = None,
-    head_pitch: Optional[float] = None,
-    iris_offset: Optional[float] = None,
+    eye_contact_score: float | None = None,
+    head_tilt: float | None = None,
+    looking_down: bool | None = None,
+    head_yaw: float | None = None,
+    head_pitch: float | None = None,
+    iris_offset: float | None = None,
     thresholds: GazeThresholds = GazeThresholds(),
 ) -> GazeDirectionScores:
     """
@@ -174,7 +173,7 @@ def classify_gaze_direction(
     Supports both pre-computed floats and geometric signals.
     """
     thresh_dict = asdict(thresholds)
-    
+
     scores = GazeDirectionScores(
         eye_contact_score=_sanitize_score(eye_contact_score),
         head_pitch=head_pitch if head_pitch is not None else head_tilt,
@@ -185,36 +184,36 @@ def classify_gaze_direction(
 
     # If we have geometric data, use it for superior classification
     has_geo = head_yaw is not None or head_pitch is not None or iris_offset is not None
-    
+
     if has_geo:
         yaw = head_yaw or 0.0
         pitch = head_pitch or 0.0
         iris = iris_offset or 0.0
-        
+
         # 1. Check Down
         if pitch < thresholds.looking_down_pitch:
             scores.gaze_direction = "down"
             scores.confidence = min(1.0, abs(pitch) / 30.0)
-            
+
         # 2. Check Up
         elif pitch > thresholds.looking_up_pitch:
             scores.gaze_direction = "up"
             scores.confidence = min(1.0, pitch / 30.0)
-            
+
         # 3. Check Left/Right (Yaw)
         elif yaw < -thresholds.looking_away_yaw:
             scores.gaze_direction = "left"
             scores.confidence = min(1.0, abs(yaw) / 45.0)
-            
+
         elif yaw > thresholds.looking_away_yaw:
             scores.gaze_direction = "right"
             scores.confidence = min(1.0, yaw / 45.0)
-            
+
         # 4. Check Iris offset (Looking away without turning head)
         elif iris > thresholds.iris_offset_limit:
             scores.gaze_direction = "away"
             scores.confidence = min(1.0, (iris - thresholds.iris_offset_limit) * 4.0)
-            
+
         # 5. At Camera
         elif abs(yaw) < thresholds.at_camera_yaw and abs(pitch) < thresholds.at_camera_pitch and iris < thresholds.iris_offset_limit:
             scores.gaze_direction = "at_camera"
@@ -225,11 +224,11 @@ def classify_gaze_direction(
             max_dev = max(yaw_dev, pitch_dev, iris_dev)
             scores.confidence = 1.0 - (max_dev * 0.5) # Ranges from 0.5 to 1.0
             scores.eye_contact_score = scores.confidence
-            
+
         else:
             scores.gaze_direction = "ambiguous"
             scores.confidence = 0.4
-            
+
         return scores
 
     # Fallback to Legacy Logic (if only floats/booleans are provided)
@@ -255,7 +254,7 @@ def classify_gaze_direction(
 
 
 def classify_gaze_from_landmarks(
-    landmarks: Dict[str, Point],
+    landmarks: dict[str, Point],
     thresholds: GazeThresholds = GazeThresholds(),
 ) -> GazeDirectionScores:
     """
@@ -264,7 +263,7 @@ def classify_gaze_from_landmarks(
     """
     yaw, pitch = estimate_head_pose(landmarks)
     iris = estimate_iris_offset(landmarks)
-    
+
     return classify_gaze_direction(
         head_yaw=yaw,
         head_pitch=pitch,

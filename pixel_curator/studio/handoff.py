@@ -12,10 +12,12 @@ directory; sources are copied, never moved.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _meta(conn, key: str) -> dict:
@@ -43,7 +45,7 @@ def _reproducibility(prj, state: dict, run: str, batch: str) -> dict:
 
 
 def _readme(name: str, run: str, batch: str, included: list[str],
-            missing: list[str], state: dict, best: Optional[dict]) -> str:
+            missing: list[str], state: dict, best: dict | None) -> str:
     lines = [
         f"# Studio Production Handoff - {name}", "",
         f"Project: {state.get('project')}  |  lifecycle stage: "
@@ -72,9 +74,9 @@ def _readme(name: str, run: str, batch: str, included: list[str],
     return "\n".join(lines)
 
 
-def export_studio_handoff(prj, output_base: Optional[Path] = None,
+def export_studio_handoff(prj, output_base: Path | None = None,
                           run_name: str = "", batch_id: str = "",
-                          dataset_version: Optional[int] = None,
+                          dataset_version: int | None = None,
                           include_samples: bool = False,
                           dry_run: bool = False) -> dict:
     """Export a production handoff bundle.
@@ -84,8 +86,8 @@ def export_studio_handoff(prj, output_base: Optional[Path] = None,
     recorded as warnings; the export never raises on absent files.
     """
     from .. import manifest as mf
-    from .state import build_studio_state
     from .registry import build_asset_registry
+    from .state import build_studio_state
 
     base = Path(output_base or prj.output_path).expanduser()
     state = build_studio_state(prj, base, dataset_version=dataset_version,
@@ -103,6 +105,7 @@ def export_studio_handoff(prj, output_base: Optional[Path] = None,
     try:
         conn = mf.connect(base, readonly=True)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # ---- run-scoped artifacts ----
@@ -122,8 +125,7 @@ def export_studio_handoff(prj, output_base: Optional[Path] = None,
         else:
             missing.append(f"model card for run '{run}' (run: card --run)")
         try:
-            from ..artistic.stack_recommender import \
-                recommend_best_epoch_and_stack
+            from ..artistic.stack_recommender import recommend_best_epoch_and_stack
             artifacts["recommended_stack"] = \
                 recommend_best_epoch_and_stack(conn, prj, run)
             included.append("recommended_stack.json")
@@ -137,14 +139,14 @@ def export_studio_handoff(prj, output_base: Optional[Path] = None,
             artifacts["dataset_readiness"] = dataset_readiness(conn, ds_v)
             included.append("dataset_readiness.json")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     # ---- batch-scoped artifacts ----
     batch_dir = None
     if batch:
         try:
-            from ..artistic.review import (export_review, find_batch_dir,
-                                           load_batch_manifest)
+            from ..artistic.review import export_review, find_batch_dir, load_batch_manifest
             batch_dir = find_batch_dir(base, batch)
             plan = load_batch_manifest(batch_dir)
             review = export_review(batch_dir)
@@ -172,6 +174,7 @@ def export_studio_handoff(prj, output_base: Optional[Path] = None,
             prj, conn=conn, output_base=base)
         included.append("asset_registry.json")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     if conn is not None:
         conn.close()

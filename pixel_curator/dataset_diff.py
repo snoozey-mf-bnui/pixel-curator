@@ -18,12 +18,15 @@ Read-only over the manifest; never modifies datasets.
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 
 from .builder import diff_datasets
 from .insights import _median, frame_quality
 from .viz.payload import viz_cache_dir
+
+logger = logging.getLogger(__name__)
 
 
 def _cohort(conn, version: int) -> list[dict]:
@@ -74,6 +77,7 @@ def _cluster_assignments(output_base: Path, version: int) -> dict[str, str]:
             return {i["item_id"]: i["cluster_id"]
                     for i in payload.get("items", [])}
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
     return {}
 

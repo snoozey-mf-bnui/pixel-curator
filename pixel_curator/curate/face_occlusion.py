@@ -20,8 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -35,29 +34,29 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
 class OcclusionThresholds:
     """Configurable thresholds for occlusion classification."""
-    # A completely clean, unoccluded face crop usually has 50-70% skin 
+    # A completely clean, unoccluded face crop usually has 50-70% skin
     # (the rest is eyes, eyebrows, lips, hairline).
-    max_healthy_skin_ratio: float = 0.45 
+    max_healthy_skin_ratio: float = 0.45
     occluded_threshold: float = 0.25   # >25% non-skin = occluded
 
 
 @dataclass
 class FaceOcclusionScores:
     """Container for face occlusion metrics with serialization."""
-    occlusion_level: Optional[float] = None     # 0.0 (visible) to 1.0 (fully occluded)
-    is_occluded: Optional[bool] = None
-    occlusion_type: Optional[str] = None        # hair, mask, hand, object, unknown
-    skin_ratio: Optional[float] = None
+    occlusion_level: float | None = None     # 0.0 (visible) to 1.0 (fully occluded)
+    is_occluded: bool | None = None
+    occlusion_type: str | None = None        # hair, mask, hand, object, unknown
+    skin_ratio: float | None = None
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -67,7 +66,7 @@ class FaceOcclusionScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -78,10 +77,10 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def estimate_occlusion_signals(
-    image: np.ndarray, 
-    face_bbox: Optional[BBox],
+    image: np.ndarray,
+    face_bbox: BBox | None,
     thresholds: OcclusionThresholds = OcclusionThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Analyzes a face crop to determine occlusion by looking for non-skin pixels.
     """
@@ -99,34 +98,34 @@ def estimate_occlusion_signals(
 
     crop = image[y1:y2, x1:x2]
     crop_h, crop_w = crop.shape[:2]
-    
+
     # Convert to YCrCb and create skin mask
     ycrcb = cv2.cvtColor(crop, cv2.COLOR_BGR2YCR_CB)
     lower_skin = np.array([0, 133, 77])
     upper_skin = np.array([255, 173, 127])
     skin_mask = cv2.inRange(ycrcb, lower_skin, upper_skin)
-    
+
     # Clean up mask
     kernel = np.ones((3, 3), np.uint8)
     skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, kernel)
-    
+
     total_pixels = float(crop_h * crop_w)
     skin_pixels = float(np.count_nonzero(skin_mask))
     skin_ratio = skin_pixels / total_pixels
-    
+
     # Calculate occlusion level
     # If skin_ratio is 0.6, occlusion is 0.0. If skin_ratio is 0.1, occlusion is high.
     occlusion_level = max(0.0, (thresholds.max_healthy_skin_ratio - skin_ratio) / thresholds.max_healthy_skin_ratio)
-    
+
     # Spatial Analysis: Split into top/bottom halves and left/right halves
     mid_y = crop_h // 2
     mid_x = crop_w // 2
-    
+
     top_skin = float(np.count_nonzero(skin_mask[:mid_y, :])) / (mid_y * crop_w)
     bottom_skin = float(np.count_nonzero(skin_mask[mid_y:, :])) / ((crop_h - mid_y) * crop_w)
     left_skin = float(np.count_nonzero(skin_mask[:, :mid_x])) / (crop_h * mid_x)
     right_skin = float(np.count_nonzero(skin_mask[:, mid_x:])) / (crop_h * (crop_w - mid_x))
-    
+
     # Determine occlusion type heuristically
     occlusion_type = "none"
     if occlusion_level > 0.1:
@@ -135,7 +134,7 @@ def estimate_occlusion_signals(
             occlusion_type = "hair"
         # Bottom occluded (Face mask, hand over mouth)
         elif bottom_skin < 0.30 and top_skin > 0.40:
-            occlusion_type = "mask" 
+            occlusion_type = "mask"
         # Asymmetrical (Hand on cheek, phone)
         elif abs(left_skin - right_skin) > 0.25:
             occlusion_type = "hand"
@@ -153,10 +152,10 @@ def estimate_occlusion_signals(
 # --- Main Logic ---
 
 def evaluate_face_occlusion(
-    occlusion_level: Optional[float] = None,
-    is_occluded: Optional[bool] = None,
-    occlusion_type: Optional[str] = None,
-    skin_ratio: Optional[float] = None,
+    occlusion_level: float | None = None,
+    is_occluded: bool | None = None,
+    occlusion_type: str | None = None,
+    skin_ratio: float | None = None,
     thresholds: OcclusionThresholds = OcclusionThresholds(),
 ) -> FaceOcclusionScores:
     """
@@ -196,7 +195,7 @@ def evaluate_face_occlusion(
 
 def evaluate_occlusion_from_image(
     image: np.ndarray,
-    face_bbox: Optional[BBox] = None,
+    face_bbox: BBox | None = None,
     thresholds: OcclusionThresholds = OcclusionThresholds(),
 ) -> FaceOcclusionScores:
     """
@@ -240,13 +239,13 @@ if __name__ == "__main__":
 
     if CV2_AVAILABLE:
         print("2. Testing CV Pipeline - Clean Unoccluded Face:")
-        # 400x400 face crop. Skin tone BGR (130, 160, 190). 
+        # 400x400 face crop. Skin tone BGR (130, 160, 190).
         # Add dark spots for eyes/mouth so it's not 100% skin (which would be unnatural)
         clean_img = np.ones((400, 400, 3), dtype=np.uint8) * (130, 160, 190)
         cv2.circle(clean_img, (150, 150), 20, (0, 0, 0), -1) # Left eye
         cv2.circle(clean_img, (250, 150), 20, (0, 0, 0), -1) # Right eye
         cv2.rectangle(clean_img, (180, 250), (220, 270), (0, 0, 0), -1) # Mouth
-        
+
         clean_scores = evaluate_occlusion_from_image(clean_img, face_bbox=(0, 0, 400, 400))
         print(f"   Skin Ratio: {clean_scores.skin_ratio:.4f} (Should be ~0.85)")
         print(f"   Occlusion Level: {clean_scores.occlusion_level:.4f} (Should be near 0)")
@@ -255,8 +254,8 @@ if __name__ == "__main__":
         print("3. Testing CV Pipeline - Hair Over Face (Top Occlusion):")
         hair_img = clean_img.copy()
         # Cover top 30% with "hair" (black/brown)
-        hair_img[:120, :] = (20, 20, 20) 
-        
+        hair_img[:120, :] = (20, 20, 20)
+
         hair_scores = evaluate_occlusion_from_image(hair_img, face_bbox=(0, 0, 400, 400))
         print(f"   Skin Ratio: {hair_scores.skin_ratio:.4f} (Should be lower)")
         print(f"   Occlusion Level: {hair_scores.occlusion_level:.4f} (Should be high)")
@@ -265,8 +264,8 @@ if __name__ == "__main__":
         print("4. Testing CV Pipeline - Face Mask (Bottom Occlusion):")
         mask_img = clean_img.copy()
         # Cover bottom 35% with "mask" (blue)
-        mask_img[260:, :] = (255, 0, 0) 
-        
+        mask_img[260:, :] = (255, 0, 0)
+
         mask_scores = evaluate_occlusion_from_image(mask_img, face_bbox=(0, 0, 400, 400))
         print(f"   Skin Ratio: {mask_scores.skin_ratio:.4f}")
         print(f"   Occlusion Level: {mask_scores.occlusion_level:.4f} (Should be high)")

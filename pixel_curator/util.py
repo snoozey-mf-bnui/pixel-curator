@@ -10,11 +10,13 @@ import shutil
 import subprocess
 import sys
 from collections import deque
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Optional
 
 from .config import LOG_NAME, PHOTO_EXTS, VIDEO_EXTS
+
+logger = logging.getLogger(__name__)
 
 try:
     from PIL import Image  # optional accelerator
@@ -35,6 +37,7 @@ class BufferHandler(logging.Handler):
         try:
             LOG_BUFFER.append(self.format(record))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
 
@@ -71,7 +74,7 @@ def run_cmd(
     return subprocess.run(cmd, check=check, capture_output=capture, text=text)
 
 
-def which(name: str) -> Optional[str]:
+def which(name: str) -> str | None:
     return shutil.which(name)
 
 
@@ -98,7 +101,7 @@ def safe_slug(text: str, max_len: int = 80) -> str:
     return slug[:max_len] or "unnamed"
 
 
-def parse_fps(rate: Optional[str]) -> Optional[float]:
+def parse_fps(rate: str | None) -> float | None:
     if not rate or rate == "0/0":
         return None
     try:
@@ -110,6 +113,7 @@ def parse_fps(rate: Optional[str]) -> Optional[float]:
             return float(num) / den_f
         return float(rate)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -219,6 +223,7 @@ def check_dependencies() -> dict:
         import insightface  # type: ignore  # noqa: F401
         result["insightface"] = True
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     try:
         import torch  # type: ignore
@@ -241,8 +246,8 @@ def project_data_plane(prj) -> dict:
     each check is ``{"level": "ok"|"warn"|"error", "detail": str}``.
     ``ok`` is False when any error-level check fails.
     """
-    from pathlib import Path as _P
     import os
+    from pathlib import Path as _P
 
     from .config import DB_NAME
 

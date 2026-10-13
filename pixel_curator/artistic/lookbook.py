@@ -17,9 +17,9 @@ CLI:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from ..config import Project
 from ..util import safe_slug
@@ -85,7 +85,7 @@ class LookbookConfig:
     seed: int = 1234
     pony_prefix: bool = True
     extra_loras: list[tuple[str, float]] = field(default_factory=list)
-    generate_fn: Optional[Callable] = None   # test hook: (prompt, seed) -> png bytes
+    generate_fn: Callable | None = None   # test hook: (prompt, seed) -> png bytes
 
 
 def lookbook_generator(prj: Project, cfg: LookbookConfig) -> Generator[str, None, None]:

@@ -19,8 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -34,7 +33,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
@@ -50,12 +49,12 @@ class CoverageThresholds:
 class ClothingTypeScores:
     """Container for clothing type classification results with serialization."""
     clothing_type: str = "unknown"           # lingerie, casual, formal, swimwear, nude, etc.
-    coverage_level: Optional[str] = None     # full, high, medium, low, none
-    coverage_ratio: Optional[float] = None   # 0.0 (nude) to 1.0 (fully covered)
+    coverage_level: str | None = None     # full, high, medium, low, none
+    coverage_ratio: float | None = None   # 0.0 (nude) to 1.0 (fully covered)
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -65,7 +64,7 @@ class ClothingTypeScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_ratio(value: Optional[float]) -> Optional[float]:
+def _sanitize_ratio(value: float | None) -> float | None:
     """Validates ratio scores. Clamps to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -76,9 +75,9 @@ def _sanitize_ratio(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def compute_coverage_ratio(
-    image: np.ndarray, 
-    body_bbox: Optional[BBox]
-) -> Optional[float]:
+    image: np.ndarray,
+    body_bbox: BBox | None
+) -> float | None:
     """
     Computes the clothing coverage ratio by detecting skin pixels in the YCrCb color space.
     Ratio = 1.0 - (Skin Area / Body Bbox Area).
@@ -96,38 +95,38 @@ def compute_coverage_ratio(
         return None
 
     crop = image[y1:y2, x1:x2]
-    
+
     # Convert to YCrCb color space (much better for skin detection than RGB/HSV)
     ycrcb = cv2.cvtColor(crop, cv2.COLOR_BGR2YCR_CB)
-    
+
     # Standard YCrCb skin bounds
     lower_skin = np.array([0, 133, 77])
     upper_skin = np.array([255, 173, 127])
-    
+
     # Create skin mask
     mask = cv2.inRange(ycrcb, lower_skin, upper_skin)
-    
+
     # Clean up mask (remove small noise)
     kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    
+
     skin_pixels = float(np.count_nonzero(mask))
     total_pixels = float(crop.shape[0] * crop.shape[1])
-    
+
     if total_pixels == 0:
         return None
-        
+
     skin_ratio = skin_pixels / total_pixels
     coverage_ratio = 1.0 - skin_ratio
-    
+
     return _sanitize_ratio(coverage_ratio)
 
 
 def infer_clothing_from_coverage(
     coverage_ratio: float,
     thresholds: CoverageThresholds = CoverageThresholds()
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """
     Infers the coverage level and clothing type heuristically from the skin coverage ratio.
     """
@@ -144,9 +143,9 @@ def infer_clothing_from_coverage(
 # --- Main Logic ---
 
 def classify_clothing_type(
-    clothing_type: Optional[str] = None,
-    coverage_level: Optional[str] = None,
-    coverage_ratio: Optional[float] = None,
+    clothing_type: str | None = None,
+    coverage_level: str | None = None,
+    coverage_ratio: float | None = None,
     thresholds: CoverageThresholds = CoverageThresholds(),
 ) -> ClothingTypeScores:
     """
@@ -165,14 +164,14 @@ def classify_clothing_type(
     # If we have a coverage ratio, use it to infer missing data
     if cov_ratio is not None:
         inferred_level, inferred_type = infer_clothing_from_coverage(cov_ratio, thresholds)
-        
+
         if scores.coverage_level is None:
             scores.coverage_level = inferred_level
-            
+
         # Only override clothing_type if it's completely unknown
         if scores.clothing_type == "unknown":
             scores.clothing_type = inferred_type
-            
+
         scores.confidence = 0.8 if scores.clothing_type != "unknown" else 0.6
     else:
         # Fallback to explicit string inputs
@@ -190,7 +189,7 @@ def classify_clothing_type(
 
 def classify_from_image(
     image: np.ndarray,
-    body_bbox: Optional[BBox] = None,
+    body_bbox: BBox | None = None,
     thresholds: CoverageThresholds = CoverageThresholds(),
 ) -> ClothingTypeScores:
     """
@@ -213,7 +212,7 @@ def get_clothing_type(scores: ClothingTypeScores) -> str:
     return scores.clothing_type
 
 
-def get_coverage_level(scores: ClothingTypeScores) -> Optional[str]:
+def get_coverage_level(scores: ClothingTypeScores) -> str | None:
     """Returns the coverage level."""
     return scores.coverage_level
 
@@ -238,7 +237,7 @@ if __name__ == "__main__":
         # Simulate a 400x600 body crop. 100% skin tone.
         nude_img = np.zeros((600, 400, 3), dtype=np.uint8)
         nude_img[:] = (130, 160, 190) # Skin tone BGR
-        
+
         nude_scores = classify_from_image(nude_img, body_bbox=(0, 0, 400, 600))
         print(f"   Coverage Ratio: {nude_scores.coverage_ratio:.4f} (Should be ~0.0)")
         print(f"   Type: {nude_scores.clothing_type} (Should be nude)")
@@ -248,7 +247,7 @@ if __name__ == "__main__":
         # Simulate a 400x600 body crop. 0% skin (solid blue clothing).
         clothed_img = np.zeros((600, 400, 3), dtype=np.uint8)
         clothed_img[:] = (200, 0, 0) # Blue
-        
+
         clothed_scores = classify_from_image(clothed_img, body_bbox=(0, 0, 400, 600))
         print(f"   Coverage Ratio: {clothed_scores.coverage_ratio:.4f} (Should be ~1.0)")
         print(f"   Type: {clothed_scores.clothing_type} (Should be formal_or_full_casual)")

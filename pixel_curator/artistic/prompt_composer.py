@@ -17,11 +17,12 @@ Deterministic and dependency-free: no model files, no network, no torch.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Optional
 
-from ..stack_intelligence import (CONCEPT_STRENGTH_MODERATE,
-                                  CONCEPT_STRENGTH_STRONG,
-                                  IDENTITY_ANCHOR_MIN)
+from ..stack_intelligence import (
+    CONCEPT_STRENGTH_MODERATE,
+    CONCEPT_STRENGTH_STRONG,
+    IDENTITY_ANCHOR_MIN,
+)
 
 # Role ordering: who composes first and who yields first when the stack
 # must be rebalanced (identity is never auto-reduced).
@@ -128,7 +129,7 @@ def list_negative_chains() -> list[dict]:
 
 
 def compose_negative_chains(chains: list[str],
-                            extra_terms: Optional[list[str]] = None,
+                            extra_terms: list[str] | None = None,
                             intensity: str = "standard") -> list[str]:
     """Resolve chain names to a deduplicated negative-term list.
 
@@ -163,7 +164,7 @@ class ArtisticLoraLayer:
     trigger_words: list[str] = field(default_factory=list)
     priority: int = 50
     enabled: bool = True
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
@@ -209,9 +210,9 @@ class ComposedArtisticPrompt:
 # Built-in professional recipes
 # ---------------------------------------------------------------------------
 
-def _layer(name: str, role: str, weight: Optional[float] = None,
-           triggers: Optional[list[str]] = None,
-           notes: Optional[str] = None) -> ArtisticLoraLayer:
+def _layer(name: str, role: str, weight: float | None = None,
+           triggers: list[str] | None = None,
+           notes: str | None = None) -> ArtisticLoraLayer:
     lo, hi = ROLE_WEIGHT_RANGES.get(role, (0.20, 0.45))
     return ArtisticLoraLayer(
         name=name, role=role,
@@ -647,13 +648,13 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 def compose_artistic_prompt(
         recipe: ArtisticPromptRecipe,
         trigger_phrase: str = "",
-        identity_strength: Optional[float] = None,
-        concept_strength: Optional[float] = None,
+        identity_strength: float | None = None,
+        concept_strength: float | None = None,
         strength: float = 1.0,
         identity_lora_name: str = "",
         pony_prefix: bool = True,
-        negative_chains: Optional[list[str]] = None,
-        extra_negative_terms: Optional[list[str]] = None,
+        negative_chains: list[str] | None = None,
+        extra_negative_terms: list[str] | None = None,
         negative_intensity: str = "standard") -> ComposedArtisticPrompt:
     """Compose prompt + negative + ordered LoRA stack from a recipe.
 

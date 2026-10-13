@@ -7,7 +7,7 @@ the existing prompt), and the user's own prompt text is always preserved.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 # Each booster key carries a professional positive fragment and an
 # artifact-control negative fragment.

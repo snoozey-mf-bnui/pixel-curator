@@ -25,8 +25,8 @@ import json
 import logging
 import shutil
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
 
 log = logging.getLogger("pixel_curator.export.general")
 
@@ -144,8 +144,8 @@ def export_manifest(conn: sqlite3.Connection, out_path: Path | str,
 # ---------------------------------------------------------------------------
 # selection export
 # ---------------------------------------------------------------------------
-def select_records(records: list[dict], top_pct: Optional[float] = None,
-                   min_score: Optional[float] = None) -> list[dict]:
+def select_records(records: list[dict], top_pct: float | None = None,
+                   min_score: float | None = None) -> list[dict]:
     """Filter records by score. ``top_pct`` (0-100) keeps the best slice by
     rank; ``min_score`` (0-1) keeps everything at or above the unified
     score. If both are given, a frame must satisfy both."""
@@ -163,8 +163,8 @@ def select_records(records: list[dict], top_pct: Optional[float] = None,
 
 
 def select_records_balanced(records: list[dict], n: int,
-                            top_pct: Optional[float] = None,
-                            min_score: Optional[float] = None) -> list[dict]:
+                            top_pct: float | None = None,
+                            min_score: float | None = None) -> list[dict]:
     """Evenly-spread selection across CLIP clusters: round-robin over
     ``cluster_id`` groups, best-scored frame first within each group.
     Frames without a cluster assignment fall back to the global score
@@ -186,8 +186,8 @@ def select_records_balanced(records: list[dict], n: int,
 
 
 def export_selection(conn: sqlite3.Connection, out_dir: Path | str,
-                     top_pct: Optional[float] = None,
-                     min_score: Optional[float] = None,
+                     top_pct: float | None = None,
+                     min_score: float | None = None,
                      mode: str = "symlink",
                      with_captions: bool = True,
                      balanced: int = 0) -> dict:

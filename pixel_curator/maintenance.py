@@ -9,17 +9,18 @@ space  - per-area disk usage of the output volume.
 
 from __future__ import annotations
 
+import logging
 import shutil
 import time
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator
 
 from . import manifest
 from .config import CurateConfig, ExtractConfig, Project
-from .util import (discover_photos, discover_videos, human_bytes, setup_logging,
-                   stable_id)
 
+logger = logging.getLogger(__name__)
+from .util import discover_photos, discover_videos, human_bytes, setup_logging, stable_id
 
 # -----------------------------
 # Watch / auto-ingest
@@ -173,6 +174,7 @@ def space_report(prj: Project, output_base: Path) -> list[dict]:
         report.append({"area": "VOLUME FREE", "files": "-",
                        "bytes": usage.free, "human": human_bytes(usage.free)})
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return report
 
@@ -183,6 +185,7 @@ def backup_project(prj, out_path=None):
     import tarfile
     import time
     from pathlib import Path
+
     from .config import DB_NAME
     out = Path(out_path) if out_path else (
         Path.home() / f"pixel_curator_backup_{time.strftime('%Y%m%d_%H%M')}.tar.gz")
@@ -204,6 +207,7 @@ def backup_project(prj, out_path=None):
                         d.glob("*.json")):
                     tar.add(sc, arcname=f"sidecars/{sc.name}")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return out
 

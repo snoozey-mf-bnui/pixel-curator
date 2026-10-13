@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 GenerationMode = Literal["txt2img", "img2img"]
 
@@ -27,8 +27,8 @@ SUPPORTED_INIT_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 class InitImageResolution:
     """Result of resolving an init image path into a generation mode."""
     mode: GenerationMode
-    init_image_path: Optional[Path]
-    error: Optional[str] = None
+    init_image_path: Path | None
+    error: str | None = None
 
     @property
     def is_img2img(self) -> bool:
@@ -36,7 +36,7 @@ class InitImageResolution:
 
 
 def resolve_generation_mode(
-        init_image_path: "str | Path | None") -> InitImageResolution:
+        init_image_path: str | Path | None) -> InitImageResolution:
     """Decide txt2img vs img2img from an init image path. Pure / no I/O beyond
     a stat() existence + suffix check. Never raises."""
     # None / empty / whitespace -> txt2img (intentional, not an error)

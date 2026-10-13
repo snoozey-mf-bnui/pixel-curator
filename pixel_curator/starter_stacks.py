@@ -8,15 +8,13 @@ score before it is ever shown.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from .lora_explorer import LoraCard
 from .stack_intelligence import resolve_stack
 
 # ---------------------------------------------------------------------------
 # STARTER_TEMPLATES — professional, identity-first fashion/catalog templates
 # ---------------------------------------------------------------------------
-STARTER_TEMPLATES: list[tuple[str, str, Optional[str]]] = [
+STARTER_TEMPLATES: list[tuple[str, str, str | None]] = [
     ("Identity + Studio Lighting", "lighting", None),
     ("Identity + Editorial Fashion", "fashion", None),
     ("Identity + Catalog Style", "style", None),
@@ -26,7 +24,7 @@ STARTER_TEMPLATES: list[tuple[str, str, Optional[str]]] = [
 ]
 
 
-def _pick_identity(cards: list[LoraCard]) -> Optional[LoraCard]:
+def _pick_identity(cards: list[LoraCard]) -> LoraCard | None:
     """Best identity anchor: anchor-hinted first, then identity family,
     most recently modified wins."""
     ids = [c for c in cards if c.profile.family in ("identity", "character")]
@@ -38,7 +36,7 @@ def _pick_identity(cards: list[LoraCard]) -> Optional[LoraCard]:
 
 
 def _pick_concept(cards: list[LoraCard], family: str,
-                  chosen: list[LoraCard]) -> Optional[LoraCard]:
+                  chosen: list[LoraCard]) -> LoraCard | None:
     """Best concept card for a family: lowest identity risk first, sidecar
     metadata preferred; respects known conflicts against already-chosen
     LoRAs and families."""
@@ -68,7 +66,7 @@ def _pick_concept(cards: list[LoraCard], family: str,
 
 
 def recommend_starter_stacks(cards: list[LoraCard],
-                             base_model: Optional[str] = None,
+                             base_model: str | None = None,
                              limit: int = 6) -> list[dict]:
     """Starter stack recommendations from the available library."""
     identity = _pick_identity(cards)
@@ -475,7 +473,7 @@ _ROLE_FALLBACKS = {
 }
 
 
-def _pick_for_role(index: dict, role: str, used: set) -> Optional[str]:
+def _pick_for_role(index: dict, role: str, used: set) -> str | None:
     for candidate_role in _ROLE_FALLBACKS.get(role, [role]):
         for stem in index.get(candidate_role, []):
             if stem not in used:
@@ -651,7 +649,7 @@ def list_motion_presets() -> list[dict]:
     return [_with_defaults(p) for p in MOTION_PRESETS]
 
 
-def get_motion_preset(name: str) -> Optional[dict]:
+def get_motion_preset(name: str) -> dict | None:
     """Look up one motion preset by its UI-facing name (case-insensitive)."""
     low = (name or "").strip().lower()
     for p in MOTION_PRESETS:
@@ -666,7 +664,7 @@ def list_wardrobe_presets() -> list[dict]:
     return [_with_defaults(p) for p in WARDROBE_PRESETS]
 
 
-def get_wardrobe_preset(name: str) -> Optional[dict]:
+def get_wardrobe_preset(name: str) -> dict | None:
     """Look up one wardrobe preset by its UI-facing name (case-insensitive)."""
     low = (name or "").strip().lower()
     for p in WARDROBE_PRESETS:
@@ -676,7 +674,7 @@ def get_wardrobe_preset(name: str) -> Optional[dict]:
 
 
 def resolve_wardrobe_preset(name: str, lora_dir=None,
-                            library_aware: bool = False) -> Optional[dict]:
+                            library_aware: bool = False) -> dict | None:
     """Resolve a wardrobe OR motion preset's LoRA stack through the preflight
     validator so the UI can show resolved assets, total weight, the prompt
     fragment, and any warnings before generation. Never raises for ordinary

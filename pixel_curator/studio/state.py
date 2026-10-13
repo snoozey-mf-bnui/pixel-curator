@@ -14,8 +14,10 @@ confidence and surface professional warnings rather than raising.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # Ordered production lifecycle
 LIFECYCLE_STAGES = [
@@ -46,6 +48,7 @@ def _runtime_summary(prj) -> dict:
         guidance = any(v.get("status") == "found"
                        for v in detect_identity_tools(prj).values())
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     note = {"mps": "Conservative batch sizes (4-6); one refinement pass "
                    "at a time.",
@@ -57,8 +60,8 @@ def _runtime_summary(prj) -> dict:
             "note": note}
 
 
-def build_studio_state(prj, output_base: Optional[Path] = None,
-                       dataset_version: Optional[int] = None,
+def build_studio_state(prj, output_base: Path | None = None,
+                       dataset_version: int | None = None,
                        run_name: str = "", batch_id: str = "") -> dict:
     """Assemble the full studio production state. Read-only."""
     from .. import manifest as mf
@@ -88,11 +91,13 @@ def build_studio_state(prj, output_base: Optional[Path] = None,
             from ..builder import list_datasets
             datasets = list_datasets(conn)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         try:
             from ..train.kohya import list_runs
             runs = list_runs(conn)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     # ---- dataset stage ----
@@ -111,6 +116,7 @@ def build_studio_state(prj, output_base: Optional[Path] = None,
                 elif dr["blockers"]:
                     blockers += dr["blockers"]
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
     else:
         warnings.append("No built datasets yet - curate and build a "
@@ -141,6 +147,7 @@ def build_studio_state(prj, output_base: Optional[Path] = None,
             if run_rd["has_model_card"]:
                 completed.append("model_card_complete")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     # ---- stack recommendation (meta marker is optional) ----
@@ -156,6 +163,7 @@ def build_studio_state(prj, output_base: Optional[Path] = None,
         from ..artistic.review import list_batches
         batches = list_batches(base)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     if batches:
         completed.append("generation_batch_planned")
@@ -337,7 +345,7 @@ def render_studio_state(state: dict) -> str:
         f"  completed: {', '.join(state['completed_stages']) or '(none)'}",
     ]
     if state["datasets"]:
-        lines.append(f"  datasets: "
+        lines.append("  datasets: "
                      + ", ".join(f"v{d['version']:03d}"
                                  for d in state["datasets"]))
     if state["runs"]:

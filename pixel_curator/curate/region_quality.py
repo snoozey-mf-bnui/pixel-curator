@@ -18,8 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -33,19 +32,19 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
 class RegionQualityScores:
     """Container for region-specific quality metrics with serialization capabilities."""
-    face_quality: Optional[float] = None
-    body_quality: Optional[float] = None
-    overall_quality: Optional[float] = None
-    combined_regional_score: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    face_quality: float | None = None
+    body_quality: float | None = None
+    overall_quality: float | None = None
+    combined_regional_score: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -55,7 +54,7 @@ class RegionQualityScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -76,51 +75,51 @@ def normalize_sharpness(value: float, max_reasonable: float = 120.0) -> float:
 
 
 def compute_region_sharpness(
-    image: np.ndarray, 
-    bbox: Optional[BBox], 
+    image: np.ndarray,
+    bbox: BBox | None,
     max_reasonable: float = 120.0
-) -> Optional[float]:
+) -> float | None:
     """
     Crops an image to the provided bounding box and computes normalized sharpness.
     """
     if not CV2_AVAILABLE:
         logger.error("OpenCV (cv2) is required to compute region sharpness but is not installed.")
         return None
-        
+
     if image is None or bbox is None:
         return None
-        
+
     x1, y1, x2, y2 = bbox
     h, w = image.shape[:2]
-    
+
     # Clamp coordinates to image boundaries
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)
     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-    
+
     if x2 <= x1 or y2 <= y1:
         logger.warning(f"Invalid bounding box after clamping: {bbox}")
         return None
-        
+
     crop = image[y1:y2, x1:x2]
     if crop.size == 0:
         return None
-        
+
     # Convert to grayscale if needed
     if len(crop.shape) == 3:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     else:
         gray = crop
-        
+
     # Variance of Laplacian
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
     return normalize_sharpness(sharpness, max_reasonable)
 
 
 def compute_regional_score(
-    face_quality: Optional[float] = None,
-    body_quality: Optional[float] = None,
-    overall_quality: Optional[float] = None,
+    face_quality: float | None = None,
+    body_quality: float | None = None,
+    overall_quality: float | None = None,
     face_weight: float = 0.4,
     body_weight: float = 0.4,
     overall_weight: float = 0.2,
@@ -174,8 +173,8 @@ def compute_regional_score(
 
 def compute_from_bboxes(
     image: np.ndarray,
-    face_bbox: Optional[BBox] = None,
-    body_bbox: Optional[BBox] = None,
+    face_bbox: BBox | None = None,
+    body_bbox: BBox | None = None,
     face_weight: float = 0.4,
     body_weight: float = 0.4,
     overall_weight: float = 0.2,
@@ -187,8 +186,8 @@ def compute_from_bboxes(
     """
     if image is None:
         return compute_regional_score(
-            face_weight=face_weight, 
-            body_weight=body_weight, 
+            face_weight=face_weight,
+            body_weight=body_weight,
             overall_weight=overall_weight
         )
 
@@ -230,8 +229,8 @@ def has_strong_face_and_body(scores: RegionQualityScores, threshold: float = 0.6
 
 
 def meets_regional_criteria(
-    scores: RegionQualityScores, 
-    threshold: float = 0.6, 
+    scores: RegionQualityScores,
+    threshold: float = 0.6,
     require_all: bool = True
 ) -> bool:
     """
@@ -240,13 +239,13 @@ def meets_regional_criteria(
     If require_all=False, any available region score must pass.
     """
     available_scores = [
-        s for s in [scores.face_quality, scores.body_quality, scores.overall_quality] 
+        s for s in [scores.face_quality, scores.body_quality, scores.overall_quality]
         if s is not None
     ]
-    
+
     if not available_scores:
         return False
-        
+
     if require_all:
         return all(s >= threshold for s in available_scores)
     else:
@@ -288,11 +287,11 @@ if __name__ == "__main__":
         # Simulate a 500x500 image with random noise (high sharpness)
         np.random.seed(42)
         mock_image = np.random.randint(0, 256, (500, 500, 3), dtype=np.uint8)
-        
+
         # Face bbox (top left), Body bbox (center)
         face_bbox = (100, 100, 200, 200)
         body_bbox = (150, 150, 350, 400)
-        
+
         cv_scores = compute_from_bboxes(mock_image, face_bbox, body_bbox)
         print(f"   Face Quality: {cv_scores.face_quality:.4f}")
         print(f"   Body Quality: {cv_scores.body_quality:.4f}")

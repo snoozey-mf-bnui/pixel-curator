@@ -17,8 +17,8 @@ changed and no files are touched.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
-from typing import Generator, Optional
 
 from ..insights import aesthetic_proxy
 from .basic import hamming
@@ -58,12 +58,12 @@ def _scoped_frames(conn, cfg: DuplicateScanConfig) -> list[dict]:
     marks = ",".join("?" for _ in cfg.statuses)
     if cfg.dataset_version:
         rows = conn.execute(
-            f"SELECT f.frame_id, f.path, f.dhash, f.sharpness, "
-            f"f.brightness, d.framing FROM frames f "
-            f"JOIN dataset_frames df ON df.frame_id = f.frame_id "
-            f"AND df.version = ? "
-            f"LEFT JOIN detections d ON d.frame_id = f.frame_id "
-            f"WHERE f.dhash IS NOT NULL", (cfg.dataset_version,)).fetchall()
+            "SELECT f.frame_id, f.path, f.dhash, f.sharpness, "
+            "f.brightness, d.framing FROM frames f "
+            "JOIN dataset_frames df ON df.frame_id = f.frame_id "
+            "AND df.version = ? "
+            "LEFT JOIN detections d ON d.frame_id = f.frame_id "
+            "WHERE f.dhash IS NOT NULL", (cfg.dataset_version,)).fetchall()
     else:
         rows = conn.execute(
             f"SELECT f.frame_id, f.path, f.dhash, f.sharpness, "

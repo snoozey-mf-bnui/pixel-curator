@@ -20,8 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -35,7 +34,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
@@ -54,15 +53,15 @@ class LightingDirectionScores:
     """Container for lighting direction classification results with serialization."""
     lighting_type: str = "unknown"
     confidence: float = 0.0
-    has_rim_light: Optional[bool] = None
-    has_strong_side_light: Optional[bool] = None
-    is_overhead: Optional[bool] = None
-    shadow_strength: Optional[float] = None
-    left_right_gradient: Optional[float] = None
-    top_bottom_gradient: Optional[float] = None
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    has_rim_light: bool | None = None
+    has_strong_side_light: bool | None = None
+    is_overhead: bool | None = None
+    shadow_strength: float | None = None
+    left_right_gradient: float | None = None
+    top_bottom_gradient: float | None = None
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -72,7 +71,7 @@ class LightingDirectionScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -82,7 +81,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 
 # --- CV Estimation Helpers ---
 
-def estimate_lighting_signals(image: np.ndarray, bbox: Optional[BBox]) -> Dict[str, Optional[float]]:
+def estimate_lighting_signals(image: np.ndarray, bbox: BBox | None) -> dict[str, float | None]:
     """
     Analyzes a subject crop to determine luminance gradients and shadow strength.
     """
@@ -110,29 +109,29 @@ def estimate_lighting_signals(image: np.ndarray, bbox: Optional[BBox]) -> Dict[s
     left_mean = np.mean(gray_f[:, :mid_x])
     right_mean = np.mean(gray_f[:, mid_x:])
     # Positive = Left is brighter, Negative = Right is brighter
-    lr_gradient = float((left_mean - right_mean))
+    lr_gradient = float(left_mean - right_mean)
 
     # 3. Top vs Bottom Gradient (Overhead Lighting)
     mid_y = gray_f.shape[0] // 2
     top_mean = np.mean(gray_f[:mid_y, :])
     bottom_mean = np.mean(gray_f[mid_y:, :])
     # Positive = Top is brighter (Overhead), Negative = Bottom is brighter (Underlighting)
-    tb_gradient = float((top_mean - bottom_mean))
+    tb_gradient = float(top_mean - bottom_mean)
 
     # 4. Rim Lighting Heuristic
     # Compare the brightness of the outer 10% border to the inner 50% center
     border_h = int(gray_f.shape[0] * 0.1)
     border_w = int(gray_f.shape[1] * 0.1)
-    
+
     if border_h > 0 and border_w > 0:
         # Create a mask for the center
         mask = np.zeros_like(gray_f, dtype=bool)
         mask[border_h:-border_h, border_w:-border_w] = True
-        
+
         border_mean = np.mean(gray_f[~mask])
         center_mean = np.mean(gray_f[mask])
         max_lum = np.max(gray_f)
-        
+
         # Rim light if border is significantly brighter than center, and close to max lum
         is_rim = bool(border_mean > center_mean * 1.2 and border_mean > max_lum * 0.8)
     else:
@@ -149,12 +148,12 @@ def estimate_lighting_signals(image: np.ndarray, bbox: Optional[BBox]) -> Dict[s
 # --- Main Logic ---
 
 def classify_lighting_direction(
-    shadow_strength: Optional[float] = None,
-    has_rim_light: Optional[bool] = None,
-    has_strong_side_light: Optional[bool] = None,
-    is_overhead: Optional[bool] = None,
-    left_right_gradient: Optional[float] = None,
-    top_bottom_gradient: Optional[float] = None,
+    shadow_strength: float | None = None,
+    has_rim_light: bool | None = None,
+    has_strong_side_light: bool | None = None,
+    is_overhead: bool | None = None,
+    left_right_gradient: float | None = None,
+    top_bottom_gradient: float | None = None,
     thresholds: LightingThresholds = LightingThresholds(),
 ) -> LightingDirectionScores:
     """
@@ -162,7 +161,7 @@ def classify_lighting_direction(
     Supports both pre-computed booleans and geometric signals.
     """
     thresh_dict = asdict(thresholds)
-    
+
     # Infer booleans from gradients if gradients are provided
     if left_right_gradient is not None and has_strong_side_light is None:
         has_strong_side_light = abs(left_right_gradient) > thresholds.side_gradient
@@ -208,7 +207,7 @@ def classify_lighting_direction(
         scores.lighting_type = "side"
         # Confidence based on gradient magnitude
         if left_right_gradient is not None:
-            scores.confidence = min(1.0, abs(left_right_gradient) / 0.4) 
+            scores.confidence = min(1.0, abs(left_right_gradient) / 0.4)
         else:
             scores.confidence = 0.65
         return scores
@@ -236,7 +235,7 @@ def classify_lighting_direction(
 
 def classify_lighting_from_image(
     image: np.ndarray,
-    bbox: Optional[BBox] = None,
+    bbox: BBox | None = None,
     thresholds: LightingThresholds = LightingThresholds(),
 ) -> LightingDirectionScores:
     """
@@ -276,7 +275,7 @@ if __name__ == "__main__":
         mock_side_img = np.zeros((600, 300, 3), dtype=np.uint8)
         mock_side_img[:, :150] = (200, 200, 200)
         mock_side_img[:, 150:] = (50, 50, 50)
-        
+
         side_scores = classify_lighting_from_image(mock_side_img, bbox=(0, 0, 300, 600))
         print(f"   Type: {side_scores.lighting_type} (Should be side)")
         print(f"   Shadow Strength: {side_scores.shadow_strength:.4f}")
@@ -287,7 +286,7 @@ if __name__ == "__main__":
         mock_overhead_img = np.zeros((300, 600, 3), dtype=np.uint8)
         mock_overhead_img[:150, :] = (200, 200, 200)
         mock_overhead_img[150:, :] = (80, 80, 80)
-        
+
         overhead_scores = classify_lighting_from_image(mock_overhead_img, bbox=(0, 0, 600, 300))
         print(f"   Type: {overhead_scores.lighting_type} (Should be overhead)")
         print(f"   T/B Gradient: {overhead_scores.top_bottom_gradient:.4f}\n")
@@ -298,7 +297,7 @@ if __name__ == "__main__":
         # Add slight noise so it's not perfectly 0 variance
         np.random.seed(42)
         mock_soft_img += np.random.randint(-10, 10, (500, 500, 3), dtype=np.int8)
-        
+
         soft_scores = classify_lighting_from_image(mock_soft_img, bbox=(0, 0, 500, 500))
         print(f"   Type: {soft_scores.lighting_type} (Should be soft)")
         print(f"   Shadow Strength: {soft_scores.shadow_strength:.4f}\n")
@@ -311,7 +310,7 @@ if __name__ == "__main__":
         mock_rim_img[-50:, :] = 240 # Bottom border
         mock_rim_img[:, :50] = 240 # Left border
         mock_rim_img[:, -50:] = 240 # Right border
-        
+
         rim_scores = classify_lighting_from_image(mock_rim_img, bbox=(0, 0, 500, 500))
         print(f"   Type: {rim_scores.lighting_type} (Should be rim)")
         print(f"   Has Rim Light: {rim_scores.has_rim_light}")

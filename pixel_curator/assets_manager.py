@@ -20,7 +20,6 @@ import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from .lora_validator import DEFAULT_LORA_DIR, LoraStackValidator
 
@@ -69,7 +68,7 @@ VERIFIED_FASHION_ASSETS: dict[str, dict] = {
 class AssetResult:
     name: str
     status: str                     # available | placed | skipped | rejected
-    path: Optional[str] = None
+    path: str | None = None
     message: str = ""
 
 
@@ -100,7 +99,7 @@ class VerifiedAssetManager:
     def is_verified(self, name: str) -> bool:
         return self._norm(name) in self.allowlist
 
-    def local_path(self, name: str) -> Optional[Path]:
+    def local_path(self, name: str) -> Path | None:
         p = self.lora_dir / self._norm(name)
         return p if p.is_file() else None
 
@@ -111,9 +110,9 @@ class VerifiedAssetManager:
 
     # -- core ----------------------------------------------------------------
     def ensure_lora_available(self, lora_name: str,
-                              hf_repo_id: Optional[str] = None,
-                              github_url: Optional[str] = None
-                              ) -> Optional[Path]:
+                              hf_repo_id: str | None = None,
+                              github_url: str | None = None
+                              ) -> Path | None:
         """Ensure an allowlisted verified asset is present in ``lora_dir``.
 
         Returns the local path if available/placed, else ``None`` with a
@@ -154,7 +153,7 @@ class VerifiedAssetManager:
         return None
 
     def _download_hf(self, name: str, repo_id: str,
-                     filename: str) -> Optional[Path]:
+                     filename: str) -> Path | None:
         try:
             from huggingface_hub import hf_hub_download
         except Exception:
@@ -187,7 +186,7 @@ class VerifiedAssetManager:
         log.info("Verified asset placed and index refreshed: %s", name)
         return dest
 
-    def download_missing(self, names: Optional[list[str]] = None
+    def download_missing(self, names: list[str] | None = None
                          ) -> list[AssetResult]:
         """Check (and, where configured, place) verified assets. Without an
         explicit list, all allowlist entries are checked. Reports per asset;
@@ -217,10 +216,10 @@ class VerifiedAssetManager:
         return results
 
 
-def ensure_lora_available(lora_name: str, hf_repo_id: Optional[str] = None,
-                          github_url: Optional[str] = None,
+def ensure_lora_available(lora_name: str, hf_repo_id: str | None = None,
+                          github_url: str | None = None,
                           lora_dir: Path | str | None = None
-                          ) -> Optional[Path]:
+                          ) -> Path | None:
     """Module-level wrapper around :class:`VerifiedAssetManager`."""
     return VerifiedAssetManager(lora_dir).ensure_lora_available(
         lora_name, hf_repo_id, github_url)

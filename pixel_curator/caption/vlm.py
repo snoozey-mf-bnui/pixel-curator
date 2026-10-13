@@ -19,8 +19,11 @@ torch/transformers installed.
 """
 from __future__ import annotations
 
+import logging
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 # boilerplate VLMs love to prepend; stripped so captions stay clean
 _VLM_PREFIXES = (
@@ -76,7 +79,7 @@ def make_florence_captioner(prj=None, model_id: str = "microsoft/Florence-2-base
                       "transformers (best run on the A100)")
     state = {"model": None, "proc": None}
 
-    def caption(pil_rgb) -> Optional[str]:
+    def caption(pil_rgb) -> str | None:
         try:
             if state["model"] is None:
                 dev = "cuda" if torch.cuda.is_available() else (
@@ -103,6 +106,7 @@ def make_florence_captioner(prj=None, model_id: str = "microsoft/Florence-2-base
                 text, task=task, image_size=(img.width, img.height))
             return clean_vlm_text(parsed.get(task, "") if isinstance(parsed, dict) else str(parsed))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
 
     return caption, model_id
@@ -118,6 +122,7 @@ def _default_load(path):
         with Image.open(path) as im:
             return ImageOps.exif_transpose(im).convert("RGB")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 

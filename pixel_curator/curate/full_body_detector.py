@@ -20,24 +20,21 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
-
-import numpy as np
+from dataclasses import asdict, dataclass, field
 
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 
 @dataclass
 class FullBodyThresholds:
     """Configurable thresholds for full body classification."""
     # Vertical span of body bbox relative to image height to be considered "full body"
-    full_body_span: float = 0.85       
+    full_body_span: float = 0.85
     # Vertical span to be considered "upper body" (e.g., waist up)
     upper_body_span: float = 0.40
     # Face height to body height ratio to be considered "close up" or "portrait"
@@ -47,13 +44,13 @@ class FullBodyThresholds:
 @dataclass
 class FullBodyScores:
     """Container for full body detection results with serialization."""
-    full_body_visibility: Optional[float] = None   # 0.0 (cropped) to 1.0 (full body visible)
-    is_full_body: Optional[bool] = None
-    framing_type: Optional[str] = None             # full_body, upper_body, portrait, close_up, unknown
+    full_body_visibility: float | None = None   # 0.0 (cropped) to 1.0 (full body visible)
+    is_full_body: bool | None = None
+    framing_type: str | None = None             # full_body, upper_body, portrait, close_up, unknown
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -63,7 +60,7 @@ class FullBodyScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -71,7 +68,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _is_visible(point: Optional[Point], img_w: int = 0, img_h: int = 0) -> bool:
+def _is_visible(point: Point | None, img_w: int = 0, img_h: int = 0) -> bool:
     """Checks if a keypoint is present and within image bounds."""
     if not point: return False
     if img_w > 0 and (point[0] < 0 or point[0] > img_w): return False
@@ -84,17 +81,17 @@ def _is_visible(point: Optional[Point], img_w: int = 0, img_h: int = 0) -> bool:
 def estimate_framing_from_geometry(
     img_width: int = 0,
     img_height: int = 0,
-    face_bbox: Optional[BBox] = None,
-    body_bbox: Optional[BBox] = None,
-    keypoints: Optional[Dict[str, Point]] = None,
+    face_bbox: BBox | None = None,
+    body_bbox: BBox | None = None,
+    keypoints: dict[str, Point] | None = None,
     thresholds: FullBodyThresholds = FullBodyThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Estimates framing type and full body visibility from bounding boxes and keypoints.
     """
     has_kps = keypoints is not None
     has_bboxes = face_bbox is not None and body_bbox is not None and img_height > 0
-    
+
     if not has_kps and not has_bboxes:
         return {}
 
@@ -105,14 +102,14 @@ def estimate_framing_from_geometry(
     if has_kps:
         head_visible = _is_visible(keypoints.get("nose"), img_width, img_height) or \
                        _is_visible(keypoints.get("neck"), img_width, img_height)
-                       
+
         left_ankle = _is_visible(keypoints.get("left_ankle"), img_width, img_height)
         right_ankle = _is_visible(keypoints.get("right_ankle"), img_width, img_height)
         feet_visible = left_ankle or right_ankle
-        
+
         knees_visible = _is_visible(keypoints.get("left_knee"), img_width, img_height) or \
                         _is_visible(keypoints.get("right_knee"), img_width, img_height)
-                        
+
         hips_visible = _is_visible(keypoints.get("left_hip"), img_width, img_height) or \
                        _is_visible(keypoints.get("right_hip"), img_width, img_height)
 
@@ -128,13 +125,13 @@ def estimate_framing_from_geometry(
         elif head_visible and not hips_visible:
             visibility = 0.2
             framing_type = "close_up"
-            
+
     # 2. Bounding Box Fallback (If keypoints are missing)
     elif has_bboxes:
         x1, y1, x2, y2 = body_bbox
         body_h = y2 - y1
         span = body_h / img_height if img_height > 0 else 0
-        
+
         face_h = face_bbox[3] - face_bbox[1]
         face_ratio = face_h / body_h if body_h > 0 else 0
 
@@ -161,9 +158,9 @@ def estimate_framing_from_geometry(
 # --- Main Logic ---
 
 def detect_full_body(
-    full_body_visibility: Optional[float] = None,
-    is_full_body: Optional[bool] = None,
-    framing_type: Optional[str] = None,
+    full_body_visibility: float | None = None,
+    is_full_body: bool | None = None,
+    framing_type: str | None = None,
     thresholds: FullBodyThresholds = FullBodyThresholds(),
 ) -> FullBodyScores:
     """
@@ -212,9 +209,9 @@ def detect_full_body(
 def detect_from_geometry(
     img_width: int = 0,
     img_height: int = 0,
-    face_bbox: Optional[BBox] = None,
-    body_bbox: Optional[BBox] = None,
-    keypoints: Optional[Dict[str, Point]] = None,
+    face_bbox: BBox | None = None,
+    body_bbox: BBox | None = None,
+    keypoints: dict[str, Point] | None = None,
     thresholds: FullBodyThresholds = FullBodyThresholds(),
 ) -> FullBodyScores:
     """

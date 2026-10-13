@@ -19,8 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -38,23 +37,23 @@ logger = logging.getLogger(__name__)
 class BlurThresholds:
     """Configurable thresholds for blur classification."""
     # Laplacian variance thresholds (lower = more blurry)
-    sharp_laplacian: float = 100.0       
-    slightly_blurry_laplacian: float = 50.0 
+    sharp_laplacian: float = 100.0
+    slightly_blurry_laplacian: float = 50.0
     # Ratio threshold for directional motion (e.g., X variance is < 60% of Y variance)
-    motion_ratio_threshold: float = 0.60 
+    motion_ratio_threshold: float = 0.60
 
 
 @dataclass
 class MotionBlurScores:
     """Container for motion blur detection results with serialization."""
-    blur_level: Optional[float] = None          # 0.0 (sharp) to 1.0 (very blurry)
-    is_blurry: Optional[bool] = None
-    is_motion_blur: Optional[bool] = None       # True if directional blur is detected
-    motion_direction: Optional[str] = None      # "horizontal", "vertical", or None
+    blur_level: float | None = None          # 0.0 (sharp) to 1.0 (very blurry)
+    is_blurry: bool | None = None
+    is_motion_blur: bool | None = None       # True if directional blur is detected
+    motion_direction: str | None = None      # "horizontal", "vertical", or None
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -64,7 +63,7 @@ class MotionBlurScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -75,9 +74,9 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def estimate_blur_signals(
-    image: np.ndarray, 
+    image: np.ndarray,
     thresholds: BlurThresholds = BlurThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Analyzes an image to determine overall blur level and directional motion blur.
     """
@@ -89,7 +88,7 @@ def estimate_blur_signals(
     # 1. Overall Blur (Variance of Laplacian)
     # High variance = sharp edges. Low variance = blurry.
     laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-    
+
     # Normalize to 0.0-1.0 blur level (inverted: high var = low blur)
     # Using an asymptotic function: max_reasonable var is ~500+
     blur_level = 1.0 - min(1.0, laplacian_var / (laplacian_var + 100.0))
@@ -99,19 +98,19 @@ def estimate_blur_signals(
     # Thus, the variance of the horizontal gradient (Sobel X) will drop significantly.
     sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
     sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=5)
-    
+
     var_x = float(sobel_x.var())
     var_y = float(sobel_y.var())
-    
+
     is_motion_blur = False
     motion_direction = None
-    
+
     # Avoid division by zero
     max_var = max(var_x, var_y)
     if max_var > 1e-6:
         min_var = min(var_x, var_y)
         ratio = min_var / max_var
-        
+
         # If one direction has significantly less variance than the other,
         # it indicates directional smearing (motion blur).
         if ratio < thresholds.motion_ratio_threshold:
@@ -130,10 +129,10 @@ def estimate_blur_signals(
 # --- Main Logic ---
 
 def detect_motion_blur(
-    blur_level: Optional[float] = None,
-    is_blurry: Optional[bool] = None,
-    is_motion_blur: Optional[bool] = None,
-    motion_direction: Optional[str] = None,
+    blur_level: float | None = None,
+    is_blurry: bool | None = None,
+    is_motion_blur: bool | None = None,
+    motion_direction: str | None = None,
     thresholds: BlurThresholds = BlurThresholds(),
 ) -> MotionBlurScores:
     """

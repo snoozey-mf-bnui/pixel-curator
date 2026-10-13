@@ -16,11 +16,15 @@ or a batch run.
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 Embedder = Callable[[str], Optional["np.ndarray"]]
 
@@ -31,14 +35,14 @@ REFERENCE_STATUSES = ("selected", "packaged")
 # Pure math
 # ---------------------------------------------------------------------------
 
-def _unit(v: "np.ndarray") -> Optional["np.ndarray"]:
+def _unit(v: np.ndarray) -> np.ndarray | None:
     n = float(np.linalg.norm(v))
     if not np.isfinite(n) or n == 0.0:
         return None
     return v / n
 
 
-def cosine_likeness(emb: "np.ndarray", centroid: "np.ndarray") -> float:
+def cosine_likeness(emb: np.ndarray, centroid: np.ndarray) -> float:
     """ArcFace cosine, clamped to 0..1 (negative similarity -> 0)."""
     a, b = _unit(np.asarray(emb, dtype=np.float32)), _unit(centroid)
     if a is None or b is None:
@@ -81,6 +85,7 @@ def load_reference_centroid(conn: sqlite3.Connection, *,
                     if u is not None:
                         vecs.append(u)
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
         if not vecs:
             return {"centroid": None, "n": 0,
@@ -129,6 +134,7 @@ def make_insightface_embedder(prj=None):
             faces.sort(key=lambda f: getattr(f, "det_score", 0.0), reverse=True)
             return np.asarray(faces[0].normed_embedding, dtype=np.float32)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
 
     return embed, None
@@ -139,8 +145,8 @@ def make_insightface_embedder(prj=None):
 # ---------------------------------------------------------------------------
 
 def score_evals(conn: sqlite3.Connection, *, embedder: Embedder,
-                centroid: "np.ndarray", lora: Optional[str] = None,
-                only_missing: bool = True, limit: Optional[int] = None) -> dict:
+                centroid: np.ndarray, lora: str | None = None,
+                only_missing: bool = True, limit: int | None = None) -> dict:
     """Score eval rows (those with an image_path) and write evals.likeness.
     Returns a summary. Never raises on a single bad image."""
     where = ["image_path IS NOT NULL", "TRIM(image_path) <> ''"]
@@ -196,9 +202,9 @@ def lora_likeness_summary(conn: sqlite3.Connection) -> list[dict]:
     return out
 
 
-def run_likeness(conn: sqlite3.Connection, *, prj=None, lora: Optional[str] = None,
+def run_likeness(conn: sqlite3.Connection, *, prj=None, lora: str | None = None,
                  only_missing: bool = True, min_identity_sim: float = 0.0,
-                 embedder: Optional[Embedder] = None) -> dict:
+                 embedder: Embedder | None = None) -> dict:
     """Top-level: build centroid, get an embedder, score, summarize.
     Returns a structured report; emits a 'warning' instead of raising when the
     identity backend or reference embeddings are unavailable."""

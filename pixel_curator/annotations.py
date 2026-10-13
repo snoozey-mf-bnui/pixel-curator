@@ -11,7 +11,7 @@ are snapshotted to history before every overwrite.
 from __future__ import annotations
 
 import json
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from .util import now_iso
 
@@ -20,7 +20,7 @@ DECISIONS = {"selected": "selected",
              "needs_review": "scored"}
 
 
-def _split_tags(raw: Optional[str]) -> list[str]:
+def _split_tags(raw: str | None) -> list[str]:
     return [t for t in (raw or "").split(",") if t]
 
 
@@ -42,8 +42,8 @@ def get_annotations(conn, frame_ids: Iterable[str]) -> dict[str, dict]:
     return out
 
 
-def bulk_tag(conn, frame_ids: list[str], add: Optional[list[str]] = None,
-             remove: Optional[list[str]] = None) -> dict:
+def bulk_tag(conn, frame_ids: list[str], add: list[str] | None = None,
+             remove: list[str] | None = None) -> dict:
     """Add/remove tags on many frames; returns per-frame tag state."""
     add = [t.strip() for t in (add or []) if t and t.strip()]
     remove = {t.strip() for t in (remove or []) if t and t.strip()}

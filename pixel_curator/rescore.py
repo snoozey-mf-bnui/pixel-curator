@@ -16,8 +16,8 @@ CLI:  pixel-curator rescore [--identity-threshold 0.35]
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import Project, SmartCurateConfig
@@ -33,7 +33,7 @@ def rescore_identity_generator(
     prj: Project,
     output_base: Path,
     identity_threshold: float = 0.35,
-    metadata_dir: Optional[Path] = None,
+    metadata_dir: Path | None = None,
     subject_names: tuple = (),
     sidecar_relax: float = 0.10,
 ) -> Generator[str, None, None]:

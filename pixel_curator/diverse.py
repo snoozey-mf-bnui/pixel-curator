@@ -21,9 +21,11 @@ Pure-Python and deterministic so it's testable; reads only the manifest.
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from collections import defaultdict
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_FRAMING_QUOTA = {"closeup": 0.20, "portrait": 0.30,
                          "upper_body": 0.30, "full_body": 0.20}
@@ -61,7 +63,7 @@ def fetch_candidates(conn: sqlite3.Connection) -> list[dict]:
     return out
 
 
-def pose_diversity_diagnostic(frames: list[dict]) -> Optional[dict]:
+def pose_diversity_diagnostic(frames: list[dict]) -> dict | None:
     """Optional, fail-safe pose-diversity diagnostic over a frame set, using the
     pose_diversity module. Returns None when pose data is absent or the module
     is unavailable - never raises, never changes selection."""
@@ -73,6 +75,7 @@ def pose_diversity_diagnostic(frames: list[dict]) -> Optional[dict]:
         scores = compute_pose_diversity(frames)
         return scores.to_dict()
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -142,7 +145,7 @@ def _score(frames: list[dict], *, pose_bonus: float = 0.0,
 def diverse_select(frames: list[dict], count: int, *,
                    max_source_frac: float = 0.15,
                    max_cluster_frac: float = 0.20,
-                   framing_quota: Optional[dict] = None,
+                   framing_quota: dict | None = None,
                    min_identity: float = 0.0,
                    min_sharpness: float = 0.0,
                    pose_bonus: float = 0.0,

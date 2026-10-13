@@ -12,13 +12,13 @@ Caption shape: ``<identity anchor>, <target booster>, <style cues>,
 Used by ``curate.dataset_splitter`` as the caption/tag provider.
 """
 from __future__ import annotations
+
 try:
     from pixel_curator import nsfw_vocab
 except ImportError:
     nsfw_vocab = None
 
 import logging
-from pathlib import Path
 
 log = logging.getLogger("redresser.caption_enhance")
 

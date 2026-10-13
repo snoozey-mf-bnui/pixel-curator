@@ -24,10 +24,12 @@ media file resolves even when Takeout renamed its sidecar.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # Sidecar filename suffix: ".supplemental-metadata", truncated forms like
 # ".supplemental-meta" / ".supplemental-met", an optional "(1)" duplicate
@@ -81,10 +83,10 @@ def _norm_person(name: str) -> str:
 class SidecarRecord:
     title: str
     people: tuple[str, ...] = ()
-    taken_time: Optional[int] = None        # epoch seconds, if known
+    taken_time: int | None = None        # epoch seconds, if known
     sources: tuple[str, ...] = ()           # sidecar json filenames merged in
 
-    def merge(self, other: "SidecarRecord") -> "SidecarRecord":
+    def merge(self, other: SidecarRecord) -> SidecarRecord:
         people = tuple(dict.fromkeys((*self.people, *other.people)))
         # earliest known capture time wins (most likely the original)
         times = [t for t in (self.taken_time, other.taken_time) if t]
@@ -109,7 +111,7 @@ class SidecarIndex:
         existing = self.by_name.get(key)
         self.by_name[key] = existing.merge(rec) if existing else rec
 
-    def lookup(self, media_path) -> Optional[SidecarRecord]:
+    def lookup(self, media_path) -> SidecarRecord | None:
         """Resolve a media file (path or name) to its sidecar record."""
         name = Path(media_path).name
         for key in (name, _dedup_variant(name)):
@@ -119,11 +121,12 @@ class SidecarIndex:
         return None
 
 
-def parse_sidecar(json_path: Path) -> Optional[SidecarRecord]:
+def parse_sidecar(json_path: Path) -> SidecarRecord | None:
     """Parse one sidecar JSON. Returns None if it is not a usable sidecar."""
     try:
         data = json.loads(Path(json_path).read_text(encoding="utf-8"))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
     if not isinstance(data, dict):
         return None
@@ -188,7 +191,7 @@ def build_sidecar_index(metadata_dir) -> SidecarIndex:
     return idx
 
 
-def subject_present(rec: Optional[SidecarRecord], subject_names) -> bool:
+def subject_present(rec: SidecarRecord | None, subject_names) -> bool:
     """True if any configured subject name appears in the record's people tags."""
     if rec is None or not subject_names:
         return False

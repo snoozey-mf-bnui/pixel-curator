@@ -20,8 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -35,7 +34,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
@@ -50,13 +49,13 @@ class CoverageThresholds:
 class FabricAnalysisScores:
     """Container for fabric / coverage classification results with serialization."""
     coverage_level: str = "unknown"
-    coverage_ratio: Optional[float] = None
-    has_clothing: Optional[bool] = None
-    has_sheer: Optional[bool] = None
+    coverage_ratio: float | None = None
+    has_clothing: bool | None = None
+    has_sheer: bool | None = None
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -66,7 +65,7 @@ class FabricAnalysisScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_ratio(value: Optional[float]) -> Optional[float]:
+def _sanitize_ratio(value: float | None) -> float | None:
     """Validates ratio scores. Clamps to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -91,9 +90,9 @@ def _calculate_dynamic_confidence(value: float, threshold: float) -> float:
 # --- CV Estimation Helpers ---
 
 def compute_coverage_ratio(
-    image: np.ndarray, 
-    body_bbox: Optional[BBox]
-) -> Optional[float]:
+    image: np.ndarray,
+    body_bbox: BBox | None
+) -> float | None:
     """
     Computes the clothing coverage ratio by detecting skin pixels in the YCrCb color space.
     Ratio = 1.0 - (Skin Area / Body Bbox Area).
@@ -111,39 +110,39 @@ def compute_coverage_ratio(
         return None
 
     crop = image[y1:y2, x1:x2]
-    
+
     # Convert to YCrCb color space (much better for skin detection than RGB/HSV)
     ycrcb = cv2.cvtColor(crop, cv2.COLOR_BGR2YCR_CB)
-    
+
     # Standard YCrCb skin bounds
     lower_skin = np.array([0, 133, 77])
     upper_skin = np.array([255, 173, 127])
-    
+
     # Create skin mask
     mask = cv2.inRange(ycrcb, lower_skin, upper_skin)
-    
+
     # Clean up mask (remove small noise)
     kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    
+
     skin_pixels = float(np.count_nonzero(mask))
     total_pixels = float(crop.shape[0] * crop.shape[1])
-    
+
     if total_pixels == 0:
         return None
-        
+
     skin_ratio = skin_pixels / total_pixels
     coverage_ratio = 1.0 - skin_ratio
-    
+
     return _sanitize_ratio(coverage_ratio)
 
 
 def detect_sheer_heuristic(
-    image: np.ndarray, 
-    body_bbox: Optional[BBox], 
-    coverage_ratio: Optional[float]
-) -> Optional[bool]:
+    image: np.ndarray,
+    body_bbox: BBox | None,
+    coverage_ratio: float | None
+) -> bool | None:
     """
     Heuristic to detect sheer clothing.
     If the region is classified as mostly covered (>50%) but has high edge density 
@@ -151,37 +150,37 @@ def detect_sheer_heuristic(
     """
     if not CV2_AVAILABLE or image is None or body_bbox is None or coverage_ratio is None:
         return None
-        
+
     if coverage_ratio < 0.5:
         return False  # Not enough clothing to be considered sheer
-        
+
     x1, y1, x2, y2 = body_bbox
     h, w = image.shape[:2]
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)
     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-    
+
     crop = image[y1:y2, x1:x2]
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    
+
     # High frequency edges (fabric texture over skin)
     edges = cv2.Canny(gray, 50, 150)
     edge_density = np.count_nonzero(edges) / edges.size
-    
+
     # If coverage is high but edge density is very high, flag as sheer
     # (Normal skin has lower edge density, solid fabric has medium, sheer fabric over skin is high)
     if edge_density > 0.15 and coverage_ratio < 0.85:
         return True
-        
+
     return False
 
 
 # --- Main Logic ---
 
 def classify_coverage_level(
-    coverage_ratio: Optional[float] = None,
-    has_clothing: Optional[bool] = None,
-    has_sheer: Optional[bool] = None,
+    coverage_ratio: float | None = None,
+    has_clothing: bool | None = None,
+    has_sheer: bool | None = None,
     thresholds: CoverageThresholds = CoverageThresholds(),
 ) -> FabricAnalysisScores:
     """
@@ -224,7 +223,7 @@ def classify_coverage_level(
             scores.coverage_level = "minimal"
             # For <15% covered, confidence that it is "minimal" is very high
             scores.confidence = 1.0 - _calculate_dynamic_confidence(cov_ratio, thresholds.minimal_threshold)
-            
+
         # Infer has_clothing if not explicitly provided
         if has_clothing is None:
             scores.has_clothing = cov_ratio > 0.05
@@ -242,7 +241,7 @@ def classify_coverage_level(
 
 def classify_from_image(
     image: np.ndarray,
-    body_bbox: Optional[BBox] = None,
+    body_bbox: BBox | None = None,
     thresholds: CoverageThresholds = CoverageThresholds(),
 ) -> FabricAnalysisScores:
     """
@@ -276,7 +275,7 @@ if __name__ == "__main__":
     # 95% covered (Very solid 'full')
     scores_1 = classify_coverage_level(coverage_ratio=0.95)
     print(f"   Level: {scores_1.coverage_level}, Confidence: {scores_1.confidence:.2f}")
-    
+
     # 86% covered (Barely 'full', lower confidence)
     scores_2 = classify_coverage_level(coverage_ratio=0.86)
     print(f"   Level: {scores_2.coverage_level}, Confidence: {scores_2.confidence:.2f}\n")
@@ -296,17 +295,17 @@ if __name__ == "__main__":
         # Simulate a 400x600 body crop.
         # Top half (0-300) is clothing (solid blue). Bottom half (300-600) is skin (YCrCb bounds).
         mock_img = np.zeros((600, 400, 3), dtype=np.uint8)
-        
+
         # Solid clothing (Blue)
-        mock_img[:300, :] = (200, 0, 0) 
-        
+        mock_img[:300, :] = (200, 0, 0)
+
         # Skin tone (Y=144, Cr=173, Cb=127 -> BGR approx (127, 173, 144)? OpenCV BGR for YCrCb 144,173,127)
-        # Let's just use a known skin BGR: (130, 160, 190) 
-        mock_img[300:, :] = (130, 160, 190) 
-        
+        # Let's just use a known skin BGR: (130, 160, 190)
+        mock_img[300:, :] = (130, 160, 190)
+
         # Body bbox covers the whole image
         body_bbox = (0, 0, 400, 600)
-        
+
         cv_scores = classify_from_image(mock_img, body_bbox)
         print(f"   Coverage Ratio: {cv_scores.coverage_ratio:.4f} (Should be ~0.5)")
         print(f"   Level: {cv_scores.coverage_level} (Should be partial)")

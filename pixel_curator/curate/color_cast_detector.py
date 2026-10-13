@@ -19,8 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -38,21 +37,21 @@ logger = logging.getLogger(__name__)
 class ColorCastThresholds:
     """Configurable thresholds for color cast classification."""
     # Minimum deviation from 128 in LAB space to be considered a cast
-    cast_detection_limit: float = 15.0  
+    cast_detection_limit: float = 15.0
     # Threshold for strong cast (0.0 to 1.0 normalized strength)
-    strong_cast_threshold: float = 0.35 
+    strong_cast_threshold: float = 0.35
 
 
 @dataclass
 class ColorCastScores:
     """Container for color cast detection results with serialization."""
-    cast_strength: Optional[float] = None       # 0.0 (neutral) to 1.0 (strong cast)
-    dominant_cast: Optional[str] = None         # yellow, blue, green, red, none
-    is_cast_detected: Optional[bool] = None
+    cast_strength: float | None = None       # 0.0 (neutral) to 1.0 (strong cast)
+    dominant_cast: str | None = None         # yellow, blue, green, red, none
+    is_cast_detected: bool | None = None
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -62,7 +61,7 @@ class ColorCastScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -73,9 +72,9 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def estimate_color_cast_signals(
-    image: np.ndarray, 
+    image: np.ndarray,
     thresholds: ColorCastThresholds = ColorCastThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Analyzes image in CIELAB color space to determine color cast.
     The 'a' channel maps Green(0) to Red(255). The 'b' maps Blue(0) to Yellow(255).
@@ -87,22 +86,22 @@ def estimate_color_cast_signals(
     # Convert to LAB color space
     if len(image.shape) == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        
+
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    
+
     a_chan = lab[:, :, 1].astype(np.float32)
     b_chan = lab[:, :, 2].astype(np.float32)
-    
+
     # Calculate mean deviation from neutral (128)
     a_dev = float(np.mean(a_chan) - 128.0)
     b_dev = float(np.mean(b_chan) - 128.0)
-    
+
     # The maximum absolute deviation dictates the cast strength
     max_dev = max(abs(a_dev), abs(b_dev))
-    
+
     # Normalize strength asymptotically: reaches ~0.5 at 40 dev, ~0.8 at 120 dev
     strength = max_dev / (max_dev + 40.0)
-    
+
     # Determine dominant cast direction
     dominant_cast = "none"
     is_cast = False
@@ -114,7 +113,7 @@ def estimate_color_cast_signals(
         else:
             # 'b' channel deviation is stronger
             dominant_cast = "yellow" if b_dev > 0 else "blue"
-            
+
     return {
         "cast_strength": float(strength),
         "dominant_cast": dominant_cast,
@@ -125,9 +124,9 @@ def estimate_color_cast_signals(
 # --- Main Logic ---
 
 def detect_color_cast(
-    cast_strength: Optional[float] = None,
-    dominant_cast: Optional[str] = None,
-    is_cast_detected: Optional[bool] = None,
+    cast_strength: float | None = None,
+    dominant_cast: str | None = None,
+    is_cast_detected: bool | None = None,
     thresholds: ColorCastThresholds = ColorCastThresholds(),
 ) -> ColorCastScores:
     """

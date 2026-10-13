@@ -19,8 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -34,7 +33,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 
 
 @dataclass
@@ -47,14 +46,14 @@ class BackgroundThresholds:
 @dataclass
 class BackgroundQualityScores:
     """Container for background quality metrics with serialization capabilities."""
-    background_cleanliness: Optional[float] = None
-    subject_background_contrast: Optional[float] = None
-    has_distracting_background: Optional[bool] = None
-    overall_background_score: Optional[float] = None
+    background_cleanliness: float | None = None
+    subject_background_contrast: float | None = None
+    has_distracting_background: bool | None = None
+    overall_background_score: float | None = None
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -64,7 +63,7 @@ class BackgroundQualityScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -75,10 +74,10 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def estimate_background_signals(
-    image: np.ndarray, 
-    subject_bbox: Optional[BBox],
+    image: np.ndarray,
+    subject_bbox: BBox | None,
     thresholds: BackgroundThresholds = BackgroundThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Analyzes the image outside the subject bbox to determine cleanliness and contrast.
     """
@@ -108,7 +107,7 @@ def estimate_background_signals(
     edges = cv2.Canny(gray, 50, 150)
     bg_edges = cv2.bitwise_and(edges, edges, mask=bg_mask)
     edge_density = np.count_nonzero(bg_edges) / bg_pixels
-    
+
     # Map edge density to cleanliness score (0.15 density -> ~0.0 cleanliness)
     cleanliness = max(0.0, 1.0 - (edge_density / thresholds.distracting_edge_density))
 
@@ -127,7 +126,7 @@ def estimate_background_signals(
     # If the background has high texture (edges) AND high color variance, it's distracting.
     bg_color = image[bg_mask > 0]
     color_std = np.std(bg_color) if bg_color.size > 0 else 0
-    
+
     is_distracting = bool(edge_density > thresholds.distracting_edge_density and color_std > 40.0)
 
     return {
@@ -140,9 +139,9 @@ def estimate_background_signals(
 # --- Main Logic ---
 
 def evaluate_background_quality(
-    background_cleanliness: Optional[float] = None,
-    subject_background_contrast: Optional[float] = None,
-    has_distracting_background: Optional[bool] = None,
+    background_cleanliness: float | None = None,
+    subject_background_contrast: float | None = None,
+    has_distracting_background: bool | None = None,
     thresholds: BackgroundThresholds = BackgroundThresholds(),
 ) -> BackgroundQualityScores:
     """
@@ -194,7 +193,7 @@ def evaluate_background_quality(
 
 def evaluate_background_from_image(
     image: np.ndarray,
-    subject_bbox: Optional[BBox] = None,
+    subject_bbox: BBox | None = None,
     thresholds: BackgroundThresholds = BackgroundThresholds(),
 ) -> BackgroundQualityScores:
     """
@@ -239,7 +238,7 @@ if __name__ == "__main__":
         # 500x500 image. Gray background (128). White subject box (255) in center.
         mock_clean_img = np.ones((500, 500, 3), dtype=np.uint8) * 128
         mock_clean_img[200:300, 200:300] = 255
-        
+
         clean_cv_scores = evaluate_background_from_image(mock_clean_img, subject_bbox=(200, 200, 300, 300))
         print(f"   Cleanliness: {clean_cv_scores.background_cleanliness:.4f} (Should be ~1.0)")
         print(f"   Contrast: {clean_cv_scores.subject_background_contrast:.4f} (Should be high)")
@@ -249,7 +248,7 @@ if __name__ == "__main__":
         # 500x500 image. Random noise background. Solid subject box in center.
         mock_busy_img = np.random.randint(0, 256, (500, 500, 3), dtype=np.uint8)
         mock_busy_img[200:300, 200:300] = (200, 50, 50) # Solid red subject
-        
+
         busy_cv_scores = evaluate_background_from_image(mock_busy_img, subject_bbox=(200, 200, 300, 300))
         print(f"   Cleanliness: {busy_cv_scores.background_cleanliness:.4f} (Should be near 0)")
         print(f"   Distracting: {busy_cv_scores.has_distracting_background} (Should be True)")

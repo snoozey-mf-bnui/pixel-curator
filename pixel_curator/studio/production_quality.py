@@ -16,7 +16,6 @@ from __future__ import annotations
 import copy
 import logging
 from pathlib import Path
-from typing import Optional
 
 from . import quality_boosters as qb
 
@@ -99,7 +98,7 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 class ProductionQualityEnhancer:
     """Enhance a Forge payload to catalog-grade production settings."""
 
-    def __init__(self, settings=None, backend_caps: Optional[dict] = None):
+    def __init__(self, settings=None, backend_caps: dict | None = None):
         self.settings = settings
         # backend_caps: {"hires": bool, "adetailer": bool}. Unknown -> None.
         self.caps = backend_caps or {}
@@ -249,7 +248,7 @@ class ProductionQualityEnhancer:
 def enhance_generation_payload(payload: dict,
                                quality_preset: str = DEFAULT_PRESET,
                                settings=None,
-                               backend_caps: Optional[dict] = None) -> dict:
+                               backend_caps: dict | None = None) -> dict:
     """Module-level wrapper. Returns {'payload', 'quality_metadata'}."""
     return ProductionQualityEnhancer(settings, backend_caps) \
         .enhance_generation_payload(payload, quality_preset)

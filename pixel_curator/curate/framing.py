@@ -15,8 +15,6 @@ portrait-vs-full-figure distinction - nothing else.
 """
 from __future__ import annotations
 
-from collections import Counter
-
 FRAMING_LEVELS = ("closeup", "portrait", "upper_body", "full_body")
 
 # caption-friendly phrasing for each level (for optional controllability tags)

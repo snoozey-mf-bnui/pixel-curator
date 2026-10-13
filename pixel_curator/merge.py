@@ -27,10 +27,9 @@ Backend: safetensors.numpy + numpy only (no torch needed for merging).
 from __future__ import annotations
 
 import json
-import logging
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .util import now_iso, safe_slug, setup_logging

@@ -18,10 +18,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Optional
 
-from .prompt_composer import (ArtisticPromptRecipe, compose_artistic_prompt,
-                              get_recipe)
+from .prompt_composer import ArtisticPromptRecipe, compose_artistic_prompt, get_recipe
 
 # ---------------------------------------------------------------------------
 # Controlled variation axes (professional studio vocabulary)
@@ -96,14 +94,14 @@ def plan_figure_study_batch(
         recipe: ArtisticPromptRecipe | str,
         count: int = 4,
         base_seed: int = 42,
-        variation_axes: Optional[list[str]] = None,
+        variation_axes: list[str] | None = None,
         trigger_phrase: str = "",
         identity_lora_name: str = "",
-        identity_strength: Optional[float] = None,
-        concept_strength: Optional[float] = None,
+        identity_strength: float | None = None,
+        concept_strength: float | None = None,
         strength: float = 1.0,
-        negative_chains: Optional[list[str]] = None,
-        extra_negative_terms: Optional[list[str]] = None,
+        negative_chains: list[str] | None = None,
+        extra_negative_terms: list[str] | None = None,
         negative_intensity: str = "standard") -> dict:
     """Plan a controlled-variation figure study batch.
 
@@ -306,21 +304,21 @@ def axes_for_variation_strength(strength: float) -> list[str]:
 
 
 def plan_production_batch(
-        recipe: "ArtisticPromptRecipe | str",
+        recipe: ArtisticPromptRecipe | str,
         count: int = 4,
         base_seed: int = 42,
-        passes: Optional[list[str]] = None,
-        variation_strength: Optional[float] = None,
-        variation_axes: Optional[list[str]] = None,
-        guidance: Optional[dict] = None,
+        passes: list[str] | None = None,
+        variation_strength: float | None = None,
+        variation_axes: list[str] | None = None,
+        guidance: dict | None = None,
         refine_strength: float = 0.0,
         max_variants: int = 0,
         trigger_phrase: str = "",
         identity_lora_name: str = "",
-        identity_strength: Optional[float] = None,
-        concept_strength: Optional[float] = None,
+        identity_strength: float | None = None,
+        concept_strength: float | None = None,
         strength: float = 1.0,
-        negative_chains: Optional[list[str]] = None,
+        negative_chains: list[str] | None = None,
         negative_intensity: str = "standard") -> dict:
     """Plan a multi-pass figure study production batch.
 
@@ -343,7 +341,7 @@ def plan_production_batch(
     batch_name = f"{stamp}_{recipe.name}"
 
     planned: list[dict] = []
-    last_generation: Optional[dict] = None
+    last_generation: dict | None = None
     item_serial = 0
     batch_warnings: list[str] = []
 

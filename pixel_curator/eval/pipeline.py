@@ -18,15 +18,16 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 _PIPE_CACHE: dict = {"key": None, "pipe": None}
 
 
 def diffusers_available() -> tuple[bool, str]:
     try:
-        import torch  # noqa: F401
         import diffusers  # noqa: F401
+        import torch  # noqa: F401
         from PIL import Image  # noqa: F401
         return True, "ok"
     except Exception as exc:
@@ -51,7 +52,8 @@ class TestPipeline:
     def __init__(self, checkpoint: str, vae: str = "", device: str = ""):
         import torch  # noqa: F401
         from diffusers import AutoPipelineForText2Image
-        from ..runtime import (apply_cuda_settings, get_recommended_dtype)
+
+        from ..runtime import apply_cuda_settings, get_recommended_dtype
 
         self.device = device or _device()
         self.dtype = get_recommended_dtype(self.device)
@@ -79,10 +81,12 @@ class TestPipeline:
         try:
             self.pipe.enable_attention_slicing()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         try:
             self.pipe.enable_vae_tiling()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         self.adapters: list[tuple[str, float]] = []
 
@@ -135,6 +139,7 @@ class TestPipeline:
             try:
                 self.pipe.unload_lora_weights()
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
             self.adapters = []
 
@@ -221,6 +226,7 @@ def unload_pipeline() -> str:
         try:
             _PIPE_CACHE["pipe"].close()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     _PIPE_CACHE.update(key=None, pipe=None)
     _mps_flush()

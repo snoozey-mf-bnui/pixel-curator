@@ -1,2 +1,2 @@
+from .kohya import build_command, train_available, train_generator  # noqa: F401
 from .presets import PRESETS  # noqa: F401
-from .kohya import train_generator, train_available, build_command  # noqa: F401

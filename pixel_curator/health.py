@@ -13,13 +13,16 @@ CLI:  pixel-curator health [--open]
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import DB_NAME, Project
+
+logger = logging.getLogger(__name__)
 
 
 def _safe(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> list:
@@ -111,6 +114,7 @@ def build_health(output_base: Path) -> dict:
     try:
         conn.close()
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return summary
 

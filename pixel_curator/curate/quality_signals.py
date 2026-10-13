@@ -18,11 +18,13 @@ curation pass denormalizes the stored detection bbox and feeds it in.
 """
 from __future__ import annotations
 
+import logging
 import math
 from collections import Counter
-from typing import Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 METRIC_VERSION = 1          # bump when a metric formula changes -> triggers recompute
 _SHARP_REF = 120.0          # face-sharpness normalization midpoint
@@ -37,7 +39,7 @@ _EYE_106_RIGHT = (89, 90, 87, 91, 93, 96)
 # helpers
 # ---------------------------------------------------------------------------
 
-def to_gray(rgb) -> "np.ndarray":
+def to_gray(rgb) -> np.ndarray:
     a = np.asarray(rgb, dtype=np.float32)
     if a.ndim == 2:
         return a
@@ -68,7 +70,7 @@ def laplacian_variance(gray) -> float:
     return float(lap.var())
 
 
-def face_region_sharpness(gray, bbox_px) -> Optional[float]:
+def face_region_sharpness(gray, bbox_px) -> float | None:
     """Sharpness of the FACE region only - the whole image can be crisp while
     the face is soft, which is what actually matters for identity."""
     if bbox_px is None:
@@ -87,7 +89,7 @@ def micro_detail(gray, bbox_px=None) -> float:
     return (gx + gy) / 2.0
 
 
-def detail_retention(gray, bbox_px=None) -> Optional[float]:
+def detail_retention(gray, bbox_px=None) -> float | None:
     """High-frequency energy relative to overall contrast. Low -> waxy /
     over-smoothed / beauty-filtered. 0..1, higher = more real detail kept."""
     g = _crop(gray, bbox_px) if bbox_px is not None else gray
@@ -114,7 +116,7 @@ def compression_blockiness(gray) -> float:
     return float(max(0.0, bound / interior - 1.0))
 
 
-def occlusion_quality(det_score, face_area_frac=None) -> Optional[float]:
+def occlusion_quality(det_score, face_area_frac=None) -> float | None:
     """Cheap occlusion/framing proxy from detection confidence (+ a penalty for
     tiny faces that usually mean far/occluded framing). 0..1, higher = cleaner."""
     if det_score is None:
@@ -132,7 +134,7 @@ def eye_aspect_ratio(eye_pts) -> float:
     return height / width
 
 
-def eyes_open_score(left_eye_pts, right_eye_pts, threshold=0.18) -> Optional[float]:
+def eyes_open_score(left_eye_pts, right_eye_pts, threshold=0.18) -> float | None:
     """1.0 ~ wide open, <1 squint/closed. Needs eyelid landmark points; returns
     None when unavailable (graceful)."""
     if left_eye_pts is None or right_eye_pts is None:
@@ -162,14 +164,14 @@ def headroom_score(bbox_px, w, h) -> float:
     return float(max(0.0, 1.0 - abs(frac - 0.10) / 0.15))
 
 
-def frontalness(pose) -> Optional[float]:
+def frontalness(pose) -> float | None:
     if pose is None:
         return None
     pitch, yaw = float(pose[0]), float(pose[1])
     return float(max(0.0, 1.0 - (abs(yaw) + abs(pitch)) / 90.0))
 
 
-def pose_bucket(pose) -> Optional[str]:
+def pose_bucket(pose) -> str | None:
     if pose is None:
         return None
     yaw = abs(float(pose[1]))
@@ -272,6 +274,7 @@ def _parse_bbox(raw):
             import ast
             return list(ast.literal_eval(s))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
 
 
@@ -283,6 +286,7 @@ def _default_load(path):
         rgb = exif_normalized_rgb(path)
         return np.asarray(rgb) if rgb is not None else None
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -297,6 +301,7 @@ def _eyes_from_106(landmark_2d_106):
             return None
         return lm[list(_EYE_106_LEFT)], lm[list(_EYE_106_RIGHT)]
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -337,6 +342,7 @@ def make_face_detector(prj=None):
                     "det_score": float(getattr(f, "det_score", 1.0)),
                     "face_area_frac": (bw * bh) / float(w * h)}
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             return None
 
     return detect, None
@@ -361,6 +367,7 @@ def analyze_quality_pass(conn, *, load_image=None, face_detector=None,
     and on interrupt, so resume always has durable progress to build on."""
     import sys
     import time
+
     from ..util import now_iso
     load_image = load_image or _default_load
     qs = ",".join("?" for _ in statuses)
@@ -465,8 +472,7 @@ def analyze_quality_pass(conn, *, load_image=None, face_detector=None,
             # optional advanced quality signals (additive, fail-safe, opt-in)
             if adv_on:
                 try:
-                    from .advanced_quality import (compute_advanced_signals,
-                                                   ADVANCED_SIGNAL_VERSION)
+                    from .advanced_quality import ADVANCED_SIGNAL_VERSION, compute_advanced_signals
                     img_bgr = rgb[:, :, ::-1] if rgb.ndim == 3 else rgb
                     sig, warns = compute_advanced_signals(
                         img_bgr, face_bbox=bbox_px, img_w=w, img_h=h,

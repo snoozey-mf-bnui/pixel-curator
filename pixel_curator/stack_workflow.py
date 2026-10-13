@@ -12,7 +12,6 @@ snapshot) with validation and graceful fallback for older presets.
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 from .config import Project
 from .lora_explorer import LoraCard
@@ -48,8 +47,8 @@ def workflow_overview(cards: list[LoraCard]) -> dict:
 # ---------------------------------------------------------------------------
 
 def make_stack_preset(name: str, stack: ResolvedLoraStack,
-                      requested_weights: Optional[dict] = None,
-                      slider_state: Optional[dict] = None,
+                      requested_weights: dict | None = None,
+                      slider_state: dict | None = None,
                       notes: str = "") -> dict:
     """Resolved stack -> v2 preset payload (human-readable, manifest-ready)."""
     anchor = stack.identity_anchor

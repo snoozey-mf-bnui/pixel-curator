@@ -13,10 +13,12 @@ Age safety flags still exist but only trigger from explicit human metadata
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 CLASSIFIER_VERSION = "visual_focus_v1_nsfw"
 
@@ -131,7 +133,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     try:
         return float(v) if v is not None else None
     except (TypeError, ValueError):
@@ -142,7 +144,7 @@ def _clamp01(x: float) -> float:
     return max(0.0, min(1.0, x))
 
 
-def _flatten_metadata(md: Optional[dict]) -> dict:
+def _flatten_metadata(md: dict | None) -> dict:
     out: dict = {}
     if not md:
         return out
@@ -155,6 +157,7 @@ def _flatten_metadata(md: Optional[dict]) -> dict:
         try:
             out.update(json.loads(sj))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     elif isinstance(sj, dict):
         out.update(sj)
@@ -176,6 +179,7 @@ def _load_gray(path: Path, max_side: int):
         from ..services import media_support as ms
         ms.register_heif_opener_if_available()
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     try:
         with Image.open(path) as im:
@@ -464,7 +468,7 @@ def _apply_florence(focus, detail, pose, existing_metadata):
 
 
 def classify_visual_focus(image_path, existing_metadata=None,
-                          config: Optional[VisualFocusConfig] = None
+                          config: VisualFocusConfig | None = None
                           ) -> VisualFocusResult:
     cfg = config or VisualFocusConfig()
     path = Path(image_path)
@@ -560,7 +564,7 @@ def classify_visual_focus(image_path, existing_metadata=None,
 
 
 def classify_visual_focus_batch(image_paths, output_jsonl=None,
-                                config: Optional[VisualFocusConfig] = None,
+                                config: VisualFocusConfig | None = None,
                                 resume: bool = True) -> list:
     cfg = config or VisualFocusConfig()
     done: set = set()

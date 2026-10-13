@@ -20,8 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -41,7 +40,7 @@ class ExposureThresholds:
     # Percentage of pixels that must be pure white/black to be considered clipped
     max_white_clip: float = 0.05  # 5% blown-out whites
     max_black_clip: float = 0.05  # 5% crushed blacks
-    
+
     # Absolute mean brightness limits (0.0 to 1.0) regardless of clipping
     extreme_bright_limit: float = 0.95
     extreme_dark_limit: float = 0.05
@@ -50,15 +49,15 @@ class ExposureThresholds:
 @dataclass
 class ExposureScores:
     """Container for exposure outlier metrics with serialization."""
-    exposure_level: Optional[float] = None      # 0.0 (very dark) to 1.0 (very bright)
-    is_overexposed: Optional[bool] = None
-    is_underexposed: Optional[bool] = None
-    white_clip_ratio: Optional[float] = None    # % of pixels at 255
-    black_clip_ratio: Optional[float] = None    # % of pixels at 0
+    exposure_level: float | None = None      # 0.0 (very dark) to 1.0 (very bright)
+    is_overexposed: bool | None = None
+    is_underexposed: bool | None = None
+    white_clip_ratio: float | None = None    # % of pixels at 255
+    black_clip_ratio: float | None = None    # % of pixels at 0
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -68,7 +67,7 @@ class ExposureScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -79,9 +78,9 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
 # --- CV Estimation Helpers ---
 
 def estimate_exposure_signals(
-    image: np.ndarray, 
+    image: np.ndarray,
     thresholds: ExposureThresholds = ExposureThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Analyzes image histogram to determine mean exposure and clipping ratios.
     """
@@ -90,7 +89,7 @@ def estimate_exposure_signals(
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
     total_pixels = float(gray.size)
-    
+
     if total_pixels == 0:
         return {}
 
@@ -120,11 +119,11 @@ def estimate_exposure_signals(
 # --- Main Logic ---
 
 def evaluate_exposure(
-    exposure_level: Optional[float] = None,
-    is_overexposed: Optional[bool] = None,
-    is_underexposed: Optional[bool] = None,
-    white_clip_ratio: Optional[float] = None,
-    black_clip_ratio: Optional[float] = None,
+    exposure_level: float | None = None,
+    is_overexposed: bool | None = None,
+    is_underexposed: bool | None = None,
+    white_clip_ratio: float | None = None,
+    black_clip_ratio: float | None = None,
     thresholds: ExposureThresholds = ExposureThresholds(),
 ) -> ExposureScores:
     """
@@ -146,7 +145,7 @@ def evaluate_exposure(
 
     # If clipping data is provided, use it to infer/override outlier flags
     has_clip_data = w_clip_q is not None or b_clip_q is not None
-    
+
     if has_clip_data:
         if w_clip_q is not None and w_clip_q > thresholds.max_white_clip:
             scores.is_overexposed = True

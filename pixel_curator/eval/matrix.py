@@ -20,13 +20,15 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from .. import manifest
 from ..config import Project
 from ..util import now_iso, safe_slug, setup_logging
+
+logger = logging.getLogger(__name__)
 
 SEEDS = [42, 1042, 2042]
 
@@ -102,7 +104,7 @@ class MatrixConfig:
     height: int = 1024
     negative: str = ""                 # "" -> base-model profile default
     pony_prefix: bool = True
-    generate_fn: Optional[Callable] = None    # test hook: (prompt, seed) -> png bytes
+    generate_fn: Callable | None = None    # test hook: (prompt, seed) -> png bytes
 
 
 def parse_lora_specs(spec: str) -> list[tuple[str, float]]:
@@ -139,18 +141,19 @@ def compose_prompt(template: str, prj: Project, pony_prefix: bool) -> str:
 # Likeness scoring (reuses smart-curation backend + anchor)
 # -----------------------------
 
-def likeness_scorer(conn) -> Optional[Callable]:
+def likeness_scorer(conn) -> Callable | None:
     """Returns score(png_path) -> float|None, or None when unavailable."""
     anchor_list = manifest.meta_get(conn, "identity_anchor")
     if not anchor_list:
         return None
     try:
-        from ..curate.smart import _load_backend, _read_bgr
         import numpy as np
+
+        from ..curate.smart import _load_backend, _read_bgr
         app, np_, cv2 = _load_backend()
         anchor = np.asarray(anchor_list, dtype=np.float32)
 
-        def score(path: Path) -> Optional[float]:
+        def score(path: Path) -> float | None:
             img = _read_bgr(path, np_, cv2)
             if img is None:
                 return None
@@ -176,7 +179,7 @@ def grid_layout(n_images: int, cols: int) -> tuple[int, int]:
 
 
 def assemble_grid(image_paths: list[Path], out_path: Path, cols: int,
-                  cell: int = 384, labels: Optional[list[str]] = None) -> None:
+                  cell: int = 384, labels: list[str] | None = None) -> None:
     from PIL import Image, ImageDraw
     rows, cols = grid_layout(len(image_paths), cols)
     grid = Image.new("RGB", (cols * cell, rows * cell), (16, 18, 24))
@@ -189,6 +192,7 @@ def assemble_grid(image_paths: list[Path], out_path: Path, cols: int,
                 y = (i // cols) * cell + (cell - im.height) // 2
                 grid.paste(im, (x, y))
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
         if labels and i < len(labels) and labels[i]:
             d = ImageDraw.Draw(grid)

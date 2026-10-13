@@ -24,24 +24,26 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from .. import manifest
 from ..config import CaptionConfig
 from ..util import now_iso, setup_logging
 
+logger = logging.getLogger(__name__)
+
 _TAGGER = None
-_TAGGER_ERR: Optional[str] = None
+_TAGGER_ERR: str | None = None
 
 PONY_PREFIX = ["score_9", "score_8_up", "score_7_up"]
 
 
 def caption_available() -> tuple[bool, str]:
     try:
+        import huggingface_hub  # noqa: F401
         import numpy  # noqa: F401
         import onnxruntime  # noqa: F401
-        import huggingface_hub  # noqa: F401
         from PIL import Image  # noqa: F401
         return True, "ok"
     except Exception as exc:
@@ -69,7 +71,7 @@ def parse_rules(cfg: CaptionConfig) -> dict:
 
 
 def build_caption(tags: list[tuple[str, float]], cfg: CaptionConfig,
-                  rules: Optional[dict] = None) -> str:
+                  rules: dict | None = None) -> str:
     """tags: [(tag_name, confidence), ...] already threshold-filtered.
     Returns final caption string (comma-space separated, booru style)."""
     rules = rules or parse_rules(cfg)
@@ -110,6 +112,7 @@ def _load_tagger(repo_id: str):
         raise RuntimeError(_TAGGER_ERR)
     try:
         import csv
+
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
 
@@ -165,13 +168,13 @@ def _prep_image(path: Path, size: int):
     return arr[None, ...]
 
 
-def tag_image(path: Path, cfg: CaptionConfig) -> Optional[list[tuple[str, float]]]:
+def tag_image(path: Path, cfg: CaptionConfig) -> list[tuple[str, float]] | None:
     """Run the tagger on one image. Returns threshold-filtered (tag, conf)."""
-    import numpy as np
     session, input_name, size, tag_rows = _load_tagger(cfg.repo_id)
     try:
         batch = _prep_image(path, size)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
     probs = session.run(None, {input_name: batch})[0][0]
     out: list[tuple[str, float]] = []

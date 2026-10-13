@@ -19,10 +19,13 @@ Design guarantees:
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+
+logger = logging.getLogger(__name__)
 
 DB_FILENAME = "extractor_manifest.sqlite3"
 DEFAULT_PAGE_SIZE = 100
@@ -65,11 +68,11 @@ class PipelineStage:
     order: int
     description: str = ""
     source_kind: str = "unknown"     # manifest | dataset | package | workflow | derived
-    source_path: Optional[str] = None
+    source_path: str | None = None
     available: bool = False
     count: int = 0
-    previous_stage_key: Optional[str] = None
-    retention_rate: Optional[float] = None
+    previous_stage_key: str | None = None
+    retention_rate: float | None = None
     warnings: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -85,22 +88,22 @@ class ExplorerImageRecord:
     image_id: str
     path: str
     filename: str
-    thumbnail_path: Optional[str] = None
+    thumbnail_path: str | None = None
     stage_keys: list = field(default_factory=list)
     version_membership: list = field(default_factory=list)
     architecture_target: str = "unknown"     # sdxl | unknown
-    overall_quality_score: Optional[float] = None
+    overall_quality_score: float | None = None
     quality_signals: dict = field(default_factory=dict)
     caption: str = ""
     source_folder: str = ""
     source_batch: str = ""
     flags: list = field(default_factory=list)
-    duplicate_group: Optional[str] = None
-    cluster_id: Optional[str] = None
-    framing: Optional[str] = None
-    coverage: Optional[str] = None
-    target_label: Optional[str] = None
-    last_analyzed: Optional[str] = None
+    duplicate_group: str | None = None
+    cluster_id: str | None = None
+    framing: str | None = None
+    coverage: str | None = None
+    target_label: str | None = None
+    last_analyzed: str | None = None
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -114,54 +117,54 @@ class ExplorerImageRecord:
 
 @dataclass
 class ExplorerFilter:
-    stage_key: Optional[str] = None
-    min_quality: Optional[float] = None
-    max_quality: Optional[float] = None
-    architecture_target: Optional[str] = None
-    target_label: Optional[str] = None
+    stage_key: str | None = None
+    min_quality: float | None = None
+    max_quality: float | None = None
+    architecture_target: str | None = None
+    target_label: str | None = None
     required_flags: list = field(default_factory=list)
     excluded_flags: list = field(default_factory=list)
     caption_query: str = ""
     source_query: str = ""
-    version: Optional[str] = None
-    duplicate_status: Optional[str] = None    # duplicate | unique
-    cluster_id: Optional[str] = None
-    framing: Optional[str] = None
-    coverage: Optional[str] = None
+    version: str | None = None
+    duplicate_status: str | None = None    # duplicate | unique
+    cluster_id: str | None = None
+    framing: str | None = None
+    coverage: str | None = None
     # Visual Focus Classifier filters (applied when results are present)
-    vf_focus: Optional[str] = None
-    vf_detail: Optional[str] = None
-    vf_pose: Optional[str] = None
-    vf_target: Optional[str] = None
-    vf_min_score: Optional[float] = None
+    vf_focus: str | None = None
+    vf_detail: str | None = None
+    vf_pose: str | None = None
+    vf_target: str | None = None
+    vf_min_score: float | None = None
     # Florence-2 caption filters (applied when results are present)
-    fl_processed: Optional[bool] = None
-    fl_focus: Optional[str] = None
-    fl_routing_tag: Optional[str] = None
+    fl_processed: bool | None = None
+    fl_focus: str | None = None
+    fl_routing_tag: str | None = None
     caption_natural_query: str = ""
     # Visual focus routing filters (applied when routing results are present)
-    rt_focus: Optional[str] = None
-    rt_detail: Optional[str] = None
-    rt_pose: Optional[str] = None
-    rt_tag: Optional[str] = None
-    rt_target: Optional[str] = None
-    rt_recipe: Optional[str] = None
-    rt_min_confidence: Optional[float] = None
-    rt_min_score: Optional[float] = None
+    rt_focus: str | None = None
+    rt_detail: str | None = None
+    rt_pose: str | None = None
+    rt_tag: str | None = None
+    rt_target: str | None = None
+    rt_recipe: str | None = None
+    rt_min_confidence: float | None = None
+    rt_min_score: float | None = None
     # Specialized recipe plan filters (applied when a plan is present)
-    rp_recipe: Optional[str] = None
-    rp_primary: Optional[str] = None
-    rp_arch: Optional[str] = None
-    rp_version: Optional[str] = None
-    rp_min_confidence: Optional[float] = None
+    rp_recipe: str | None = None
+    rp_primary: str | None = None
+    rp_arch: str | None = None
+    rp_version: str | None = None
+    rp_min_confidence: float | None = None
     # Training package filters (applied when a package plan is present)
-    pkg_assigned: Optional[str] = None
-    pkg_primary: Optional[str] = None
-    pkg_type: Optional[str] = None
+    pkg_assigned: str | None = None
+    pkg_primary: str | None = None
+    pkg_type: str | None = None
     limit: int = DEFAULT_PAGE_SIZE
     offset: int = 0
 
-    def clamped(self) -> "ExplorerFilter":
+    def clamped(self) -> ExplorerFilter:
         self.limit = max(1, min(int(self.limit or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
         self.offset = max(0, int(self.offset or 0))
         return self
@@ -193,7 +196,7 @@ class StageComparison:
     kept_ids: list = field(default_factory=list)
     removed_ids: list = field(default_factory=list)
     added_ids: list = field(default_factory=list)
-    retention_rate: Optional[float] = None
+    retention_rate: float | None = None
     removal_reasons: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
 
@@ -211,7 +214,7 @@ def manifest_path(output_base) -> Path:
     return Path(output_base).expanduser() / DB_FILENAME
 
 
-def connect_ro(output_base) -> Optional[sqlite3.Connection]:
+def connect_ro(output_base) -> sqlite3.Connection | None:
     """Open the manifest read-only. Returns None if absent/unopenable."""
     db = manifest_path(output_base)
     if not db.exists():
@@ -219,6 +222,7 @@ def connect_ro(output_base) -> Optional[sqlite3.Connection]:
     try:
         return sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=10)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -231,11 +235,12 @@ def _table_exists(conn, name: str) -> bool:
         return False
 
 
-def _scalar(conn, sql: str, params: tuple = ()) -> Optional[int]:
+def _scalar(conn, sql: str, params: tuple = ()) -> int | None:
     try:
         row = conn.execute(sql, params).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -288,6 +293,7 @@ def discover_explorer_sources(output_base) -> dict:
         try:
             hits += [str(p) for p in base.glob(f"*/{name}")][:20]
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         if hits:
             out["artifacts"][key] = hits
@@ -295,7 +301,7 @@ def discover_explorer_sources(output_base) -> dict:
 
 
 # ============================ stage membership =============================
-def _stage_frame_ids(conn, stage_key: str) -> Optional[set]:
+def _stage_frame_ids(conn, stage_key: str) -> set | None:
     """Return the set of frame_ids in a manifest-backed stage, or None if the
     stage's membership cannot be enumerated from the manifest."""
     if conn is None:
@@ -325,11 +331,12 @@ def _stage_frame_ids(conn, stage_key: str) -> Optional[set]:
                 "SELECT frame_id FROM captions WHERE caption_text IS NOT NULL "
                 "AND TRIM(caption_text) <> ''")}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
     return None   # package / plan stages aren't frame-enumerable from the manifest
 
 
-def _package_frame_count(sources: dict) -> Optional[int]:
+def _package_frame_count(sources: dict) -> int | None:
     for path in sources.get("artifacts", {}).get("package_manifest", []):
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -340,6 +347,7 @@ def _package_frame_count(sources: dict) -> Optional[int]:
             if isinstance(imgs, list):
                 return len(imgs)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
     return None
 
@@ -406,14 +414,14 @@ def _parse_signals(signals_json) -> dict:
         return {}
 
 
-def _coverage_label(sig: dict, framing: Optional[str]) -> Optional[str]:
+def _coverage_label(sig: dict, framing: str | None) -> str | None:
     fl = sig.get("framing_label")
     if not fl and isinstance(sig.get("coverage_intensity"), dict):
         fl = sig["coverage_intensity"].get("framing_label")
     return fl or framing
 
 
-def _target_label(sig: dict, framing: Optional[str]) -> Optional[str]:
+def _target_label(sig: dict, framing: str | None) -> str | None:
     hint = sig.get("training_use_hint")
     if hint:
         return str(hint)
@@ -547,6 +555,7 @@ def _version_map(conn) -> dict:
                 "SELECT frame_id, version, concept FROM dataset_frames"):
             out.setdefault(fid, []).append((f"v{int(ver):03d}", concept))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return out
 
@@ -686,7 +695,7 @@ def _build_where(conn, flt: ExplorerFilter):
     return (" WHERE " + " AND ".join(where)) if where else "", params
 
 
-def load_image_records(output_base, filters: Optional[ExplorerFilter] = None) -> list:
+def load_image_records(output_base, filters: ExplorerFilter | None = None) -> list:
     """Paginated, filtered image records. SQL filters paginate at the DB layer;
     derived filters (architecture/target/coverage/flags/duplicate) iterate a
     bounded, ordered window so memory stays flat even on 300k-frame projects."""
@@ -916,6 +925,7 @@ def _removal_reasons(output_base, removed_ids: Iterable[str]) -> dict:
             if not sample:
                 break
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     finally:
         conn.close()
@@ -1010,7 +1020,7 @@ def render_summary_markdown(summary: dict) -> str:
     return "\n".join(lines)
 
 
-def load_all_image_records(output_base, filters: Optional[ExplorerFilter] = None,
+def load_all_image_records(output_base, filters: ExplorerFilter | None = None,
                            hard_cap: int = 1_000_000) -> list:
     """Return every matching record by walking pages past ``MAX_PAGE_SIZE``.
 

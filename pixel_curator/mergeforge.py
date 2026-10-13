@@ -18,17 +18,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import uuid
+from collections.abc import Generator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import Project
-from .lora_explorer import (FAMILY_IDENTITY_RISK, FAMILY_WEIGHT_RANGES,
-                            LoraCard, scan_loras_cached, sidecar_path)
+from .lora_explorer import (
+    FAMILY_WEIGHT_RANGES,
+    LoraCard,
+    scan_loras_cached,
+    sidecar_path,
+)
 from .merge import block_group, merge_state_dicts, module_bases
 from .util import now_iso, safe_slug
+
+logger = logging.getLogger(__name__)
 
 RECIPE_VERSION = 1
 MERGE_METHODS = ("weighted_sum", "concat")
@@ -143,7 +150,7 @@ def classify_for_merge(card: LoraCard) -> dict:
 # ---------------------------------------------------------------------------
 
 def analyze_library(prj: Project,
-                    cards: Optional[list[LoraCard]] = None) -> dict:
+                    cards: list[LoraCard] | None = None) -> dict:
     """Full library analysis: classification + health per LoRA, role
     counts, merge readiness."""
     cards = cards if cards is not None else scan_loras_cached(prj)
@@ -189,7 +196,7 @@ def _band_mid(fam: str) -> float:
     return round((lo + hi) / 2, 2)
 
 
-def static_metadata(card: LoraCard) -> Optional[dict]:
+def static_metadata(card: LoraCard) -> dict | None:
     """Load lora_metadata.py's per-LoRA metadata.json when it has been
     generated (<lora_dir>/_metadata/<name>.json).  Returns None otherwise, so
     callers fall back to family-band heuristics.  Read-only, never raises."""
@@ -199,11 +206,12 @@ def static_metadata(card: LoraCard) -> Optional[dict]:
         if mp.exists():
             return json.loads(mp.read_text(encoding="utf-8"))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return None
 
 
-def static_ideal_weight(md: Optional[dict]) -> Optional[float]:
+def static_ideal_weight(md: dict | None) -> float | None:
     """Pull ideal_weight.default out of a loaded metadata.json, if present."""
     if md and isinstance(md.get("ideal_weight"), dict):
         d = md["ideal_weight"].get("default")
@@ -212,7 +220,7 @@ def static_ideal_weight(md: Optional[dict]) -> Optional[float]:
     return None
 
 
-def static_stack_note(md: Optional[dict]) -> str:
+def static_stack_note(md: dict | None) -> str:
     """Best human-readable stack note out of a loaded metadata.json."""
     if not md:
         return ""
@@ -355,7 +363,7 @@ def _by_role(cards: list[LoraCard]) -> dict[str, list[LoraCard]]:
 
 
 def build_recommendations(prj: Project,
-                          cards: Optional[list[LoraCard]] = None) -> list[dict]:
+                          cards: list[LoraCard] | None = None) -> list[dict]:
     """Five curated merge groups assembled from the live library.
     Only groups whose members exist are returned."""
     cards = cards if cards is not None else scan_loras_cached(prj)
@@ -509,9 +517,9 @@ def _sha256(path: Path, limit: int = 0) -> str:
 
 def make_recipe(name: str, inputs: list[tuple[str, float]],
                 method: str = "weighted_sum",
-                blocks: Optional[dict] = None,
+                blocks: dict | None = None,
                 base_model: str = "", notes: str = "",
-                compat: Optional[dict] = None,
+                compat: dict | None = None,
                 hash_files: bool = True) -> dict:
     """Reproducible merge recipe.  inputs: [(path, weight), ...]."""
     if method not in MERGE_METHODS:
@@ -595,6 +603,7 @@ def save_recipe(output_base: Path, recipe: dict) -> Path:
                                       "output": recipe.get("output")}))
         conn.close()
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return target
 
@@ -609,6 +618,7 @@ def load_recipes(output_base: Path) -> list[dict]:
             rec, _ = validate_recipe(json.loads(f.read_text()))
             out.append(rec)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             continue
     return out
 
@@ -707,6 +717,7 @@ def execute_recipe(prj: Project, output_base: Path, recipe: dict,
         data["mergeforge"] = fragment
         sc.write_text(json.dumps(data, indent=2))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     yield (f"\nMERGEFORGE DONE -> {out_path}\n"
@@ -724,7 +735,7 @@ def execute_recipe(prj: Project, output_base: Path, recipe: dict,
 # ---------------------------------------------------------------------------
 
 def wizard_plan(prj: Project, lora_ids: list[str],
-                cards: Optional[list[LoraCard]] = None) -> dict:
+                cards: list[LoraCard] | None = None) -> dict:
     """One call powering the guided merge wizard: selection -> compat,
     recommended weights, suggested method, ready-to-save recipe draft."""
     cards = cards if cards is not None else scan_loras_cached(prj)

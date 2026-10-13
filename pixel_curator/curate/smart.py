@@ -12,6 +12,7 @@ Pattern credit: framing thresholds adapted from the focal-point logic in
 reForge modules/textual_inversion/autocrop.py (face-weighted POI), upgraded
 from YuNet/Haar to SCRFD + identity embeddings.
 
+
 Workflow:
   1. pixel-curator anchor --anchor-dir /path/to/15_reference_images
   2. pixel-curator curate --smart
@@ -21,17 +22,20 @@ subject, tiny faces, or wrong identity are demoted with explicit statuses.
 
 from __future__ import annotations
 
+import logging
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from .. import manifest
 from ..config import SmartCurateConfig
 from ..sidecar import build_sidecar_index, subject_present
 from ..util import now_iso, setup_logging
 
+logger = logging.getLogger(__name__)
+
 _BACKEND = None
-_BACKEND_ERR: Optional[str] = None
+_BACKEND_ERR: str | None = None
 
 
 def _load_backend(det_size: int = 640):
@@ -64,8 +68,8 @@ def _load_backend(det_size: int = 640):
 
 def smart_available() -> tuple[bool, str]:
     try:
-        import numpy  # noqa: F401
         import insightface  # noqa: F401
+        import numpy  # noqa: F401
         import onnxruntime  # noqa: F401
         return True, "ok"
     except Exception as exc:
@@ -83,6 +87,7 @@ def _read_bgr(path: Path, np, cv2):
             rgb = np.asarray(im.convert("RGB"))
         return rgb[:, :, ::-1].copy()  # RGB -> BGR
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -106,12 +111,12 @@ def _read_bgr_exif_aware(path: Path, np, cv2) -> tuple:
             if rgb is not None:
                 return np.asarray(rgb)[:, :, ::-1].copy(), True
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return _read_bgr(path, np, cv2), False
 
 
 from .framing import classify_framing as _classify_framing  # one shared rule
-
 
 # -----------------------------
 # Anchor (subject identity)
@@ -202,7 +207,7 @@ def _orient_decision(kps, det_score: float, ocfg=None) -> tuple:
     Returns (ccw_degrees, reason); (0, ...) = leave alone. Stops the curation
     pass from over-rotating already-correct or merely-tilted faces."""
     try:
-        from ..orient import decide_rotation, OrientConfig
+        from ..orient import OrientConfig, decide_rotation
         return decide_rotation(kps, det_score, ocfg or OrientConfig())
     except Exception:
         return 0, "orient_unavailable"
@@ -245,8 +250,7 @@ def smart_curate_generator(cfg: SmartCurateConfig) -> Generator[str, None, None]
     if not ok:
         yield f"Smart curation skipped: {reason}"
         return
-    from .performance import (PerfProfiler, validate_det_size,
-                              detect_compute_device)
+    from .performance import PerfProfiler, detect_compute_device, validate_det_size
     det_size, det_warnings = validate_det_size(cfg.det_size)
     for w in det_warnings:
         yield f"Performance note: {w}"
@@ -307,6 +311,7 @@ def smart_curate_generator(cfg: SmartCurateConfig) -> Generator[str, None, None]
     try:
         ocfg = _make_orient_cfg(cfg)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     t0 = time.time()
 
@@ -493,6 +498,7 @@ def smart_curate_generator(cfg: SmartCurateConfig) -> Generator[str, None, None]
         try:
             manifest.meta_set(conn, "curation_performance", summary)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         yield ("\nCURATION PERFORMANCE PROFILE\n"
                f"device: {device_info.get('selected_device')} "

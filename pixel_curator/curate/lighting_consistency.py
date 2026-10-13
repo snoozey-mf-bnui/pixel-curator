@@ -18,11 +18,10 @@ from __future__ import annotations
 import json
 import logging
 import math
-import time
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterable, Optional
 
 import numpy as np
 
@@ -99,7 +98,7 @@ def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, float(v)))
 
 
-def _safe_float(v) -> Optional[float]:
+def _safe_float(v) -> float | None:
     if v is None:
         return None
     try:
@@ -514,7 +513,7 @@ def run_lighting_consistency(
 def render_lighting_report(result: LightingConsistencyResult) -> str:
     """Render a human-readable summary of the lighting consistency report."""
     lines: list[str] = []
-    lines.append(f"Lighting Consistency Report")
+    lines.append("Lighting Consistency Report")
     lines.append(f"  scope       : {result.scope}")
     lines.append(f"  frames      : {result.frame_count}")
     lines.append(f"  coherence   : {result.coherence_overall:.4f}")
@@ -635,7 +634,7 @@ if __name__ == "__main__":
     r5b = _analyze(coherent_frames, scope="det_test", min_frame_count=5,
                    ts_override="2025-01-01T00:00:00Z")
     assert r5a.to_json() == r5b.to_json(), "determinism violated"
-    print(f"6. Determinism: byte-identical JSON OK")
+    print("6. Determinism: byte-identical JSON OK")
 
     # Case 7: Outlier cap
     many_outliers = [

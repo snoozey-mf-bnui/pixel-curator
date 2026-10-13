@@ -23,9 +23,9 @@ import logging
 import os
 import shutil
 from collections import defaultdict
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .config import Project
@@ -40,7 +40,7 @@ class BuildConfig:
     note: str = ""
     dataset_root: str = "DATASET"
     link_mode: str = "hardlink"
-    parent: Optional[int] = None    # explicit lineage: version this build
+    parent: int | None = None    # explicit lineage: version this build
                                     # was derived/refined from (Phase 2)
     training_config: bool = True    # Phase 10: write training_config.*
                                     # beside the dataset (suggestion only)
@@ -280,7 +280,7 @@ def recipe_plan(conn, name: str, rcp: dict) -> dict:
 
 
 def plan_generator(prj: Project, output_base: Path,
-                   names: Optional[list[str]] = None) -> Generator[str, None, None]:
+                   names: list[str] | None = None) -> Generator[str, None, None]:
     """Print an availability/selection table for every (non-combo) recipe.
     Non-destructive: reads the manifest only, writes no files."""
     setup_logging(output_base)
@@ -507,8 +507,7 @@ def build_generator(prj: Project, cfg: BuildConfig) -> Generator[str, None, None
     # Phase 4: dataset-aware training suggestion at the export point
     # (advisory only; any failure degrades to a pointer at suggest-preset)
     try:
-        from .train.param_advisor import (recommend_training_params,
-                                          render_params)
+        from .train.param_advisor import recommend_training_params, render_params
         params = recommend_training_params(conn, version,
                                            recipe_name=cfg.recipe)
         yield render_params(params)

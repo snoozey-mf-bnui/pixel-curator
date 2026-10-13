@@ -10,11 +10,13 @@ No heavy imports at module load; InsightFace/ONNX are lazy and optional.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from .config import Project
+
+logger = logging.getLogger(__name__)
 
 FACEID_PRESETS = {"off": 0.0, "balanced": 0.55, "strong": 0.75,
                   "maximum": 0.95}
@@ -31,13 +33,13 @@ class IdentityIntegrationConfig:
     body_structure_lock: bool = False
     silhouette_guidance: bool = False
     background_consistency: bool = False
-    identity_lora_weight: Optional[float] = None
-    reference_image_path: Optional[str] = None
-    region_preset: Optional[str] = None
-    edit_mode: Optional[str] = None
+    identity_lora_weight: float | None = None
+    reference_image_path: str | None = None
+    region_preset: str | None = None
+    edit_mode: str | None = None
 
     @classmethod
-    def from_payload(cls, data: dict) -> "IdentityIntegrationConfig":
+    def from_payload(cls, data: dict) -> IdentityIntegrationConfig:
         known = cls.__dataclass_fields__
         cfg = cls(**{k: v for k, v in (data or {}).items() if k in known})
         preset = (data or {}).get("faceid_preset")
@@ -263,7 +265,7 @@ _SWAPPER = {"app": None, "swapper": None}
 
 
 def apply_face_identity_postprocess(image_path, reference_image_path,
-                                    prj: Optional[Project] = None) -> bool:
+                                    prj: Project | None = None) -> bool:
     """Restore reference face identity on a generated image in place.
     Lazy InsightFace/ONNX import; returns False (never raises) when the
     runtime or model is unavailable."""
@@ -299,7 +301,7 @@ def apply_face_identity_postprocess(image_path, reference_image_path,
 
 
 def face_similarity(generated_path, reference_path,
-                    prj: Optional[Project] = None):
+                    prj: Project | None = None):
     """Measured face-consistency score (ArcFace cosine, 0..1) between a
     generated image and the reference identity.  Lazy InsightFace; returns
     None when unavailable - closes the QA loop when present."""
@@ -317,6 +319,7 @@ def face_similarity(generated_path, reference_path,
         a, b = g[0].normed_embedding, r[0].normed_embedding
         return round(float(max(0.0, np.dot(a, b))), 3)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -373,7 +376,7 @@ ARTISTIC_SKIN_HIGHLIGHT_MAX = 0.45
 
 
 def assess_concept_layering(layers: list[dict],
-                            prj: Optional[Project] = None) -> dict:
+                            prj: Project | None = None) -> dict:
     """Evaluate a progressive artistic concept stack
     (identity anchor -> fashion/form study -> garment rendering ->
     skin texture treatment -> editorial posing).

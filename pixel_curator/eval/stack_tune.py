@@ -12,9 +12,9 @@ CLI:  pixel-curator tune-stack --identity ohwx_character_v012-000008 \
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generator, Optional
 
 from .. import manifest
 from ..config import Project
@@ -87,7 +87,7 @@ def _fmt_stack(weights: dict) -> str:
     return " ".join(f"<lora:{k}:{v:g}>" for k, v in weights.items())
 
 
-def _mean(vals: list[float]) -> Optional[float]:
+def _mean(vals: list[float]) -> float | None:
     v = [x for x in vals if x is not None]
     return round(sum(v) / len(v), 4) if v else None
 
@@ -105,13 +105,13 @@ class StackTuneConfig:
     seeds: tuple[int, ...] = DEFAULT_SEEDS
     cap: int = 40
     pony_prefix: bool = True
-    generate_fn: Optional[Callable] = None    # (prompt, seed, weights_dict) -> png
-    score_fn: Optional[Callable] = None       # (png_path) -> float|None
+    generate_fn: Callable | None = None    # (prompt, seed, weights_dict) -> png
+    score_fn: Callable | None = None       # (png_path) -> float|None
 
 
 def stack_tune_generator(prj: Project, cfg: StackTuneConfig
                          ) -> Generator[str, None, None]:
-    from .matrix import likeness_scorer, compose_prompt
+    from .matrix import compose_prompt, likeness_scorer
 
     conn = manifest.connect(cfg.output_base)
     scorer = cfg.score_fn or (likeness_scorer(conn) if cfg.generate_fn is None else None)

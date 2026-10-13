@@ -15,13 +15,13 @@ lazy; runtime/device behavior goes through pixel_curator.runtime.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional
 
 from ..config import Project
-from .prompt_composer import (ComposedArtisticPrompt, IDENTITY_ROLES,
-                              lora_tag_string)
+
+logger = logging.getLogger(__name__)
+from .prompt_composer import IDENTITY_ROLES, ComposedArtisticPrompt
 
 # Region preset by workflow focus (Wardrobe / Dressing Studio ids)
 WORKFLOW_REGIONS = {
@@ -104,6 +104,7 @@ def resolve_identity_lora(prj: Project) -> tuple[str, list[str]]:
         if pick:
             return pick.lora_id, warnings
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     warnings.append(
         "No identity anchor LoRA resolved from the library - the stack "
@@ -138,8 +139,7 @@ def build_artistic_txt2img_payload(
 
     # Identity Integration Layer: FaceID + pose guidance when available
     try:
-        from ..identity_integration import (IdentityIntegrationConfig,
-                                            augment_payload)
+        from ..identity_integration import IdentityIntegrationConfig, augment_payload
         id_w = next((s["weight"] for s in composed.lora_stack
                      if s["role"] in IDENTITY_ROLES), None)
         cfg_id = IdentityIntegrationConfig(
@@ -304,4 +304,5 @@ def clear_cache_between_operations(prj: Project) -> None:
         clear_accelerator_cache(
             get_device_name((prj.runtime or {}).get("device", "auto")))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass

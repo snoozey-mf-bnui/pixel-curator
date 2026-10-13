@@ -10,7 +10,6 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from .config import DB_NAME
 from .util import human_bytes, now_iso, stable_id
@@ -527,7 +526,7 @@ def _migrate_with_retry(conn: sqlite3.Connection,
     # clear message in seconds, not minutes; restored after the attempts
     per_attempt = max(0.05, min(timeout, 2.0))
     conn.execute(f"PRAGMA busy_timeout = {int(per_attempt * 1000)};")
-    last: Optional[Exception] = None
+    last: Exception | None = None
     try:
         for attempt in range(attempts):
             try:
@@ -603,7 +602,7 @@ def upsert_source(
     path: Path,
     kind: str,
     status: str = "discovered",
-    meta: Optional[dict] = None,
+    meta: dict | None = None,
 ) -> str:
     sid = stable_id(path)
     st = path.stat()
@@ -623,7 +622,7 @@ def upsert_source(
     return sid
 
 
-def get_status(conn: sqlite3.Connection, source_id: str) -> Optional[str]:
+def get_status(conn: sqlite3.Connection, source_id: str) -> str | None:
     row = conn.execute(
         "SELECT status FROM sources WHERE source_id = ?", (source_id,)
     ).fetchone()
@@ -635,10 +634,10 @@ def mark(
     source_id: str,
     status: str,
     *,
-    output_dir: Optional[Path] = None,
-    frames_extracted: Optional[int] = None,
-    error: Optional[str] = None,
-    meta: Optional[dict] = None,
+    output_dir: Path | None = None,
+    frames_extracted: int | None = None,
+    error: str | None = None,
+    meta: dict | None = None,
 ) -> None:
     updates = ["status = ?"]
     values: list[object] = [status]

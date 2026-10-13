@@ -13,7 +13,6 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger("redresser.generation_log")
 
@@ -46,7 +45,7 @@ def identity_anchor_hash(image_path: Path | str) -> str:
 
 
 def build_sample_metadata(result: dict, output_path: str = "",
-                          frame_index: Optional[int] = None) -> dict:
+                          frame_index: int | None = None) -> dict:
     """Assemble the per-record metadata dict from an orchestrator result."""
     from ..util import now_iso
     payload = result.get("payload") or {}

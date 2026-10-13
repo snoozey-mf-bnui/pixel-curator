@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger("redresser.post_processing")
 
@@ -45,7 +44,7 @@ GFPGAN_WEIGHT_DEFAULT = 0.3
 OUTPUT_SUFFIX = "_upscaled"
 
 
-def clamp_gfpgan_weight(weight: float) -> tuple[float, Optional[str]]:
+def clamp_gfpgan_weight(weight: float) -> tuple[float, str | None]:
     """Clamp the GFPGAN weight into the safe conservative range."""
     try:
         w = float(weight)
@@ -93,7 +92,7 @@ class PostProcessor:
         self.output_suffix = output_suffix
         self._upsampler = None
         self._restorer = None
-        self._device: Optional[str] = None
+        self._device: str | None = None
 
     # -- device --------------------------------------------------------------
     def _select_device(self) -> str:
@@ -115,14 +114,14 @@ class PostProcessor:
     # -- IO ------------------------------------------------------------------
     @staticmethod
     def _read_rgb(path: Path):
-        from PIL import Image
         import numpy as np
+        from PIL import Image
         return np.asarray(Image.open(path).convert("RGB"))
 
     @staticmethod
     def _write_rgb(path: Path, rgb) -> None:
-        from PIL import Image
         import numpy as np
+        from PIL import Image
         Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).save(
             path, "PNG")
 

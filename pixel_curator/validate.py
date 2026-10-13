@@ -27,9 +27,12 @@ Public API
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 # status constants
 OK = "ok"
@@ -39,11 +42,12 @@ FAIL = "fail"
 _RANK = {OK: 0, WARN: 1, FAIL: 2}
 
 
-def _quality_metric_version() -> Optional[int]:
+def _quality_metric_version() -> int | None:
     try:
         from .curate.quality_signals import METRIC_VERSION
         return int(METRIC_VERSION)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -55,7 +59,7 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
 
 
 def _check(name: str, status: str, summary: str,
-           count: int = 0, items: Optional[list] = None) -> dict:
+           count: int = 0, items: list | None = None) -> dict:
     return {"name": name, "status": status, "summary": summary,
             "count": int(count), "items": list(items or [])}
 
@@ -215,7 +219,7 @@ def check_broken_symlinks(conn: sqlite3.Connection, sample: int = 8) -> dict:
 
 
 def check_quality_coverage(conn: sqlite3.Connection,
-                           metric_version: Optional[int] = None) -> dict:
+                           metric_version: int | None = None) -> dict:
     """Warn if the Priority-2 quality pass hasn't been run (or is stale) on the
     frames you'd export. Quality-aware selection silently degrades to
     sharpness-only without it, so this nudges you to run `quality` first."""
@@ -306,6 +310,7 @@ def check_advanced_quality(conn: sqlite3.Connection,
             try:
                 s = _json.loads(sj) if sj else {}
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 continue
             tex = s.get("texture_preservation_score")
             if tex is not None and tex < low_texture:
@@ -464,7 +469,7 @@ def check_run_refs(conn: sqlite3.Connection) -> dict:
 # ---------------------------------------------------------------------------
 
 def run_validation(conn: sqlite3.Connection, *,
-                   path_exists: Optional[Callable[[str], bool]] = None,
+                   path_exists: Callable[[str], bool] | None = None,
                    sample: int = 8) -> dict:
     """Run every check and return a structured report. Read-only."""
     if path_exists is None:

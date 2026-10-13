@@ -39,8 +39,18 @@ pip install -e '.[caption]'   # WD14 tagging (onnxruntime, huggingface-hub)
 pip install -e '.[cluster]'   # CLIP embeddings / clustering / text filter (torch, open-clip)
 pip install -e '.[vlm]'       # Florence-2 captions (transformers)
 pip install -e '.[parquet]'   # parquet manifest export (pandas, pyarrow)
+pip install -e '.[cv]'        # OpenCV-based quality scorers (opencv, scikit-learn)
+pip install -e '.[face]'      # identity / face analysis (insightface)
+pip install -e '.[train]'     # LoRA / DreamBooth training + eval (torch, diffusers)
+pip install -e '.[restore]'   # restoration post-processing (Real-ESRGAN, GFPGAN)
+pip install -e '.[heif]'      # HEIC/HEIF photo ingest (pillow-heif)
+pip install -e '.[viz]'       # UMAP / HDBSCAN embedding maps
 pip install -e '.[all]'       # everything
+pip install -e '.[dev]'       # contributor tooling (pytest, ruff)
 ```
+
+The package version is read dynamically from `pixel_curator.__version__`, so
+`pip show pixel-curator` and `pixel-curator --version` always agree.
 
 Run either as an installed command or as a module:
 
@@ -200,7 +210,9 @@ Every command takes `-p/--project`; most also accept `--json` for scripting.
 ## Tests
 
 ```bash
-pixel-curator selftest            # 11 smoke checks: schema, export, review, logging
+pixel-curator selftest            # smoke checks: schema, export, review, logging
+python -m pytest                  # unit tests (pip install -e '.[dev]')
+ruff check pixel_curator          # lint
 ```
 
 ## Design guarantees

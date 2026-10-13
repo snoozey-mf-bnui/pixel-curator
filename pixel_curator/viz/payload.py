@@ -15,6 +15,7 @@ and reused unless --recompute is passed.
 from __future__ import annotations
 
 import json
+import logging
 from array import array
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from .. import manifest  # noqa: F401  (kept for callers' convenience)
 from ..insights import frame_quality
 from .clustering import cluster_embeddings, cluster_summaries
 from .projection import project_2d
+
+logger = logging.getLogger(__name__)
 
 
 def viz_cache_dir(output_base: Path, dataset: int) -> Path:
@@ -159,6 +162,7 @@ def build_viz_payload(conn, output_base: Path, dataset: int = 0,
                          else raw.split(","))
                 tags += [t.strip() for t in extra if t and t.strip()]
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
         items.append({
             "item_id": f["frame_id"], "x": x, "y": y,
@@ -191,6 +195,7 @@ def build_viz_payload(conn, output_base: Path, dataset: int = 0,
         cache_file.write_text(json.dumps(payload, indent=1))
         payload["meta"]["cache_path"] = str(cache_file)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return payload
 

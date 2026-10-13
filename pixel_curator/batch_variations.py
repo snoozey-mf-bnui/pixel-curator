@@ -13,15 +13,13 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Generator
 from dataclasses import dataclass, field
-from typing import Generator, Optional
 
-from .concept_control import (ConceptSliderState, SLIDER_INDEX,
-                              resolve_controlled_stack)
+from .concept_control import SLIDER_INDEX, ConceptSliderState, resolve_controlled_stack
 from .config import Project
 from .lora_explorer import LoraCard
 from .util import now_iso
-
 
 # ---------------------------------------------------------------------------
 # Smart variation modes - conservative, professional defaults
@@ -55,9 +53,9 @@ class VariationAxis:
     """One named variation axis: explicit values OR min/max/step."""
     slider: str
     values: list[float] = field(default_factory=list)
-    minimum: Optional[float] = None
-    maximum: Optional[float] = None
-    step: Optional[float] = None
+    minimum: float | None = None
+    maximum: float | None = None
+    step: float | None = None
 
     def resolve_values(self, mode: str = DEFAULT_MODE) -> list[float]:
         spec = SLIDER_INDEX.get(self.slider)
@@ -188,7 +186,7 @@ def expand_grid(prj: Project, cards: list[LoraCard],
                 grid: VariationGrid) -> list[VariationJob]:
     """Grid spec -> resolved variation jobs (identity anchor held fixed by
     the stack intelligence on every job)."""
-    from .base_models import detect_profile, build_prompt
+    from .base_models import build_prompt, detect_profile
     from .eval.forge_api import ForgeClient
     prof = detect_profile(prj.base_model)
     trig = f"{prj.trigger_token} {prj.class_word}".strip()
@@ -367,12 +365,13 @@ def load_batch(conn, batch_id: str) -> dict:
 
 def run_batch_generator(prj: Project, conn, jobs: list[VariationJob],
                         forge_url: str = "http://127.0.0.1:7860",
-                        out_dir: Optional[str] = None
+                        out_dir: str | None = None
                         ) -> Generator[str, None, None]:
     """Execute a batch through the Forge adapter when it is live; each
     completed variation updates its manifest row (resumable: rows with an
     output_path are skipped)."""
     from pathlib import Path
+
     from .eval.forge_api import ForgeClient
     client = ForgeClient(forge_url)
     if not client.alive():

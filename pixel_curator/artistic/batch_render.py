@@ -22,8 +22,11 @@ so the executor runs with no real server, GPU or model files.
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Callable, Generator, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _lora_pairs(stack: list[dict]) -> list[tuple[str, float]]:
@@ -79,7 +82,7 @@ def render_batch(
         face_lock: bool = False,
         reference_image: str = "",
         overwrite: bool = False,
-        face_swap_fn: Optional[Callable] = None
+        face_swap_fn: Callable | None = None
         ) -> Generator[str, None, dict]:
     """Render a planned batch through Forge. Yields progress lines and
     returns a summary dict.
@@ -108,8 +111,7 @@ def render_batch(
         checkpoint = Path(bm).stem if bm else ""
     if face_lock and face_swap_fn is None:
         try:
-            from ..identity_integration import \
-                apply_face_identity_postprocess as face_swap_fn
+            from ..identity_integration import apply_face_identity_postprocess as face_swap_fn
         except Exception:
             face_swap_fn = None
 
@@ -179,8 +181,7 @@ def render_batch(
             # the learning profile can grow. Best-effort, never fatal.
             try:
                 from .. import manifest as mf
-                from ..studio.learning import (auto_score_identity,
-                                               record_generation)
+                from ..studio.learning import auto_score_identity, record_generation
                 ids = (auto_score_identity(fpath, reference_image, prj)
                        if reference_image else None)
                 lconn = mf.connect(batch_dir.parent.parent)
@@ -192,6 +193,7 @@ def render_batch(
                     batch_id=batch_dir.name, identity_score=ids)
                 lconn.close()
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
             ok += 1
         except Exception as exc:                            # noqa: BLE001
@@ -216,6 +218,7 @@ def render_batch(
                     entry["sample_path"] = rendered[entry["item_id"]]
             rp.write_text(json.dumps(review, indent=2), encoding="utf-8")
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
 
     yield (f"DONE - {ok} rendered, {skipped} skipped, {err} error(s) -> "

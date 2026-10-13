@@ -19,15 +19,18 @@ Type heuristics (all from data already in the manifest):
 from __future__ import annotations
 
 import json
+import logging
 import math
-from dataclasses import dataclass, field
+from collections.abc import Generator
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
 from .base_models import PROFILES, blocks_string, detect_profile
 from .config import Project
 from .util import now_iso, safe_slug, setup_logging
+
+logger = logging.getLogger(__name__)
 
 EXPLICIT_TAGS = {"nude", "nsfw", "explicit", "completely_nude", "topless", "bottomless"}
 
@@ -132,6 +135,7 @@ def analyze(conn) -> dict:
             if names & EXPLICIT_TAGS:
                 expl += 1
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     a["explicit_rate"] = round(expl / tagged, 3) if tagged else 0.0
 
@@ -197,7 +201,7 @@ def detect_type(a: dict) -> list[dict]:
 
 
 def suggest_stack(ranking: list[dict], analysis: dict,
-                  base_model: Optional[str] = None) -> dict:
+                  base_model: str | None = None) -> dict:
     """From type scores -> a recommended multi-LoRA production stack,
     block-weighted for the project's base model profile.
 

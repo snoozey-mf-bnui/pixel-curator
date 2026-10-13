@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
 
 from .config import Project
 from .util import now_iso
+
+logger = logging.getLogger(__name__)
 
 # Optional capability hooks (auto-masking, identity post-process, scoring).
 # Register callables from optional extras; absence degrades gracefully.
@@ -109,7 +112,7 @@ class ModelRequirement:
     detected: str = "not configured"   # found | missing | optional | not configured
 
 
-def _detect(root: Optional[Path], rel_dir: str, keywords: tuple) -> tuple:
+def _detect(root: Path | None, rel_dir: str, keywords: tuple) -> tuple:
     """(status, expected_path, matches) against the Forge folder layout."""
     if not root:
         return "not configured", rel_dir, []
@@ -166,6 +169,7 @@ def generate_region_mask(image_path, region_id: str,
         mask.save(out)
         return out
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -249,7 +253,7 @@ EDIT_MODES = ("garment_replacement", "garment_layering", "style_variation",
 
 
 def analyze_edit_readiness(prj: Project, req: WardrobeEditRequest,
-                           cards: Optional[list] = None) -> dict:
+                           cards: list | None = None) -> dict:
     """Identity policy + consistency notes + readiness, before generation."""
     preset = get_region_preset(req.region_id)
     lo, hi = preset.recommended_denoise
@@ -297,8 +301,7 @@ def analyze_edit_readiness(prj: Project, req: WardrobeEditRequest,
                         "is not configured - the edit runs as masked "
                         "img2img over the full region framing; provide a "
                         "mask image for precise garment boundaries."))
-    from .identity_integration import (IdentityIntegrationConfig,
-                                       augment_payload)
+    from .identity_integration import IdentityIntegrationConfig, augment_payload
     id_res = augment_payload(prj, {"denoising_strength": denoise},
                              IdentityIntegrationConfig(
                                  strong_face_lock=req.strong_face_lock,
@@ -368,8 +371,7 @@ def build_wardrobe_edit_payload(prj: Project,
 
     # ControlNet units (alwayson_scripts) - pose/structure consistency
     # Identity Integration Layer: FaceID + region-aware guidance units
-    from .identity_integration import (IdentityIntegrationConfig,
-                                       augment_payload)
+    from .identity_integration import IdentityIntegrationConfig, augment_payload
     id_weight = next((w for n, w in req.selected_loras
                       if "character" in n.lower()
                       or "identity" in n.lower()), None)

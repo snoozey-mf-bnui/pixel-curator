@@ -25,9 +25,11 @@ yields an empty-but-valid profile rather than an error.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # reward = blend of your rating and the measured identity score
 REWARD_RATING_WEIGHT = 0.7
@@ -50,7 +52,7 @@ def _weight_bucket(w: float) -> str:
     return "high"
 
 
-def reward(rating: int, identity_score: Optional[float]) -> float:
+def reward(rating: int, identity_score: float | None) -> float:
     """Transparent scalar reward in 0..1 from a rating + identity score."""
     r = _RATING_NORM.get(int(rating), 0.5)
     if identity_score is None:
@@ -66,9 +68,9 @@ def reward(rating: int, identity_score: Optional[float]) -> float:
 def record_generation(conn, image_path: str, prompt: str = "",
                       negative_prompt: str = "", lora_stack=None,
                       seed: int = 0, recipe: str = "", batch_id: str = "",
-                      identity_score: Optional[float] = None,
-                      aesthetic_score: Optional[float] = None,
-                      settings: Optional[dict] = None) -> int:
+                      identity_score: float | None = None,
+                      aesthetic_score: float | None = None,
+                      settings: dict | None = None) -> int:
     """Record one generation. Idempotent on image_path: re-recording the
     same path updates it rather than duplicating."""
     stack_json = json.dumps(lora_stack or [])
@@ -238,13 +240,14 @@ def ingest_directory(conn, directory, reference_image: str = "",
 
 
 def auto_score_identity(image_path: str, reference_image: str,
-                        prj=None) -> Optional[float]:
+                        prj=None) -> float | None:
     """Measured face-consistency score (0..1) via the Identity
     Integration Layer; None when scoring is unavailable."""
     try:
         from ..identity_integration import face_similarity
         return face_similarity(image_path, reference_image, prj)
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         return None
 
 
@@ -330,6 +333,7 @@ def aggregate_preferences(conn, min_samples: int = 1,
             from .. import manifest as mf
             mf.meta_set(conn, "learning:preferences", profile)
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return profile
 
@@ -346,7 +350,7 @@ def load_preferences(conn) -> dict:
 # Stage 3: bias generation toward winners
 # ---------------------------------------------------------------------------
 
-def recommend_from_preferences(conn, candidate_loras: Optional[list] = None,
+def recommend_from_preferences(conn, candidate_loras: list | None = None,
                                max_concepts: int = 3,
                                explore: float = 0.15,
                                seed: int = 0) -> dict:
@@ -453,6 +457,7 @@ def stage_harvest(conn, output_base: Path, min_rating: int = 4,
                              target / Path(c["image_path"]).name)
                 copied += 1
             except Exception:
+                logger.debug("suppressed exception", exc_info=True)
                 pass
         plan["applied"] = True
         plan["staged_dir"] = str(target)

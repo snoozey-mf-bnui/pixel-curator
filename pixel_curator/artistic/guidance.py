@@ -18,8 +18,6 @@ never identity - when the combined guidance load gets heavy.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from ..config import Project
 
 # Conservative default strengths (identity always strongest)
@@ -54,7 +52,7 @@ REGION_GUIDANCE = {
 _GUIDANCE_LOAD_CAP = 1.10
 
 
-def _readiness(prj: Optional[Project]) -> dict:
+def _readiness(prj: Project | None) -> dict:
     """Identity Integration Layer readiness; never raises."""
     if prj is None:
         return {}
@@ -65,7 +63,7 @@ def _readiness(prj: Optional[Project]) -> dict:
         return {}
 
 
-def _backend_found(readiness: dict, key: str) -> Optional[bool]:
+def _backend_found(readiness: dict, key: str) -> bool | None:
     """True/False when detection ran; None when readiness is unknown."""
     entry = readiness.get(key)
     if not entry:
@@ -74,16 +72,16 @@ def _backend_found(readiness: dict, key: str) -> Optional[bool]:
 
 
 def plan_figure_study_guidance(
-        prj: Optional[Project] = None,
+        prj: Project | None = None,
         region: str = "",
-        controlnet: Optional[list[str]] = None,
+        controlnet: list[str] | None = None,
         ip_adapter: bool = False,
         faceid: bool = False,
         reference_image: str = "",
         pose_image: str = "",
         mask_image: str = "",
         identity_strength: float = 0.85,
-        recipe_guidance: Optional[list[str]] = None) -> dict:
+        recipe_guidance: list[str] | None = None) -> dict:
     """Plan a studio-safe guidance payload for a figure study pass.
 
     Returns {"guidance": {identity, pose, structure, edges, region_mask},

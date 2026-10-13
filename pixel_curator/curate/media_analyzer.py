@@ -22,11 +22,10 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
-from . import basic
-from . import smart
+from . import basic, smart
 
 log = logging.getLogger("redresser.media_analyzer")
 
@@ -221,7 +220,7 @@ def iter_images(raw_path: Path, limit: int = 0):
 
 def analyze_archive(raw_path, anchor_dir=None, limit: int = 0,
                     cache_path=None, resume: bool = True, det_size: int = 640,
-                    progress: Optional[Callable[[int, int], None]] = None
+                    progress: Callable[[int, int], None] | None = None
                     ) -> dict:
     """Analyze a raw archive into DatasetSplitter-ready samples.
 

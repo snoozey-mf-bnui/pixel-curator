@@ -16,13 +16,19 @@ gracefully (their generators already do).
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Optional
 
 from . import manifest
+
+logger = logging.getLogger(__name__)
 from .config import (
-    CaptionConfig, ClusterConfig, CurateConfig, ExtractConfig, Project,
+    CaptionConfig,
+    ClusterConfig,
+    CurateConfig,
+    ExtractConfig,
+    Project,
     SmartCurateConfig,
 )
 from .util import now_iso, setup_logging
@@ -42,7 +48,7 @@ class PipelineConfig:
     matrix_backend: str = "forge"
     forge_url: str = "http://127.0.0.1:7860"
     dry_run_extract: bool = False
-    start_stage: Optional[str] = None                # internal (resume)
+    start_stage: str | None = None                # internal (resume)
 
 
 def _stage_generators(prj: Project, cfg: PipelineConfig):
@@ -55,7 +61,7 @@ def _stage_generators(prj: Project, cfg: PipelineConfig):
         yield from pipeline_generator(prj.video_dirs, prj.photos_dir, ecfg)
 
     def g_curate():
-        from .curate import curate_generator, smart_curate_generator, smart_available
+        from .curate import curate_generator, smart_curate_generator
         yield from curate_generator(CurateConfig(output_base=base))
         if cfg.smart:
             yield from smart_curate_generator(SmartCurateConfig(output_base=base))
@@ -121,7 +127,7 @@ def save_state(conn, cfg: PipelineConfig, next_stage: str) -> None:
     })
 
 
-def load_state(conn) -> Optional[dict]:
+def load_state(conn) -> dict | None:
     return manifest.meta_get(conn, STATE_KEY)
 
 
@@ -188,7 +194,7 @@ class MegaConfig:
 
 def write_playground_preset(prj: Project, name: str,
                             loras: list[tuple[str, float]],
-                            path: Optional[Path] = None) -> Path:
+                            path: Path | None = None) -> Path:
     """Write/merge a Grokkie Playground preset so the stack is one click away."""
     import json
     target = Path(path) if path else (
@@ -197,6 +203,7 @@ def write_playground_preset(prj: Project, name: str,
     try:
         presets = json.loads(target.read_text())
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     from .base_models import detect_profile, preset_payload, sample_prompts
     prof = detect_profile(prj.base_model)

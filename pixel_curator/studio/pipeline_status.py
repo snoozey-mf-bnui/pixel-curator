@@ -11,9 +11,10 @@ import json
 import logging
 import struct
 from pathlib import Path
-from typing import Optional
 
 from .redresser_settings import RedresserSettings, load_settings
+
+logger = logging.getLogger(__name__)
 
 log = logging.getLogger("redresser.status")
 
@@ -77,7 +78,7 @@ def corrupt_model_check(stable_diffusion_dir: Path) -> dict:
     return info
 
 
-def subsystem_status(settings: Optional[RedresserSettings] = None,
+def subsystem_status(settings: RedresserSettings | None = None,
                      output_base: Path | str | None = None,
                      ping_forge: bool = True) -> dict:
     """Assemble the full dashboard status payload."""
@@ -114,6 +115,7 @@ def subsystem_status(settings: Optional[RedresserSettings] = None,
         preset_counts = {"wardrobe": len(ss.list_wardrobe_presets()),
                          "motion": len(ss.list_motion_presets())}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     # post-processing
@@ -167,8 +169,7 @@ def subsystem_status(settings: Optional[RedresserSettings] = None,
     except Exception:
         splitter_ok = False
     try:
-        from ..train.kohya_config_builder import (  # noqa: F401
-            build_core_identity_kohya_config)
+        from ..train.kohya_config_builder import build_core_identity_kohya_config  # noqa: F401
         recipe_ok = True
     except Exception:
         recipe_ok = False

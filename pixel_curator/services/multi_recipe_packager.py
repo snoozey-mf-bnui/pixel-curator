@@ -3,6 +3,7 @@
 Converts Specialized Recipe routing metadata into ready-to-train package folders:
 one main DreamBooth/base package plus multiple specialized LoRA packages, all
 from the same curated dataset. Metadata-only planning + non-destructive
+
 materialization (hardlink by default; copy/symlink optional) - it never loads
 models, never launches training, and never modifies source images.
 
@@ -12,12 +13,14 @@ excluded from packages by default.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 PACKAGER_VERSION = "multi_recipe_packager_v1"
 
@@ -67,7 +70,7 @@ class MultiRecipePackagerConfig:
     overwrite: bool = False
     include_dreambooth_main: bool = True
     include_lora_packages: bool = True
-    max_images_per_package: Optional[int] = None
+    max_images_per_package: int | None = None
     min_images_per_package: int = 10
     dreambooth_min_suitability: float = 75.0
     lora_min_suitability: float = 55.0
@@ -167,7 +170,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _num(v) -> Optional[float]:
+def _num(v) -> float | None:
     try:
         return float(v) if v is not None else None
     except (TypeError, ValueError):
@@ -192,6 +195,7 @@ def _resolve_caption(rec: dict, cfg: MultiRecipePackagerConfig) -> str:
                     if txt:
                         return txt
                 except Exception:
+                    logger.debug("suppressed exception", exc_info=True)
                     pass
         else:
             v = sources.get(key)
@@ -235,7 +239,7 @@ def normalize_package_records(records: list, config=None) -> list:
     return out
 
 
-def _excluded(rec: PackageImageRecord, cfg) -> Optional[str]:
+def _excluded(rec: PackageImageRecord, cfg) -> str | None:
     if cfg.exclude_age_uncertain and "review_required_age_uncertain" in rec.review_flags:
         return "age_uncertain"
     if cfg.exclude_review_flags and not cfg.allow_review_records:
@@ -447,6 +451,7 @@ def materialize_multi_recipe_packages(plan, config=None) -> dict:
                         try:
                             dest.unlink()
                         except Exception:
+                            logger.debug("suppressed exception", exc_info=True)
                             pass
                     ok, w = _link_one(src, dest, cfg.link_mode)
                     if w:
@@ -483,8 +488,7 @@ def register_materialized_packages(plan, materialized, manifest_base, *,
     membership, a ``version.json`` sidecar and optional parent lineage -
     so `pixel-curator datasets`, `history` and `diff` see these exports.
     Never raises: registration failures degrade to per-package warnings."""
-    from ..dataset_versioning import (KIND_MULTI_RECIPE_PACKAGE,
-                                      register_folder_export)
+    from ..dataset_versioning import KIND_MULTI_RECIPE_PACKAGE, register_folder_export
     records: list = []
     mat = (materialized or {}).get("materialized") or {}
     for spec in plan.packages:
@@ -579,6 +583,7 @@ def write_multi_recipe_package_plan(plan, output_dir, overwrite=False) -> dict:
             dest.write_text(content, encoding="utf-8")
             written[name] = dest
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     return written
 
@@ -591,6 +596,7 @@ def load_multi_recipe_package_plan(path) -> MultiRecipePackagePlan:
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return MultiRecipePackagePlan(
         plan_id=data.get("plan_id", ""),
@@ -651,6 +657,7 @@ def write_ui_status_summary(plan: MultiRecipePackagePlan, output_base) -> Path:
         dest.write_text(json.dumps(plan.summary, indent=2, default=str),
                         encoding="utf-8")
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     return dest
 

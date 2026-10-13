@@ -7,12 +7,14 @@ counts, and any paused pipeline checkpoint.
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from . import manifest
 from .config import DB_NAME, Project
+
+logger = logging.getLogger(__name__)
 
 ACTIVE = ("selected", "packaged")
 
@@ -67,6 +69,7 @@ def overview_report(prj: Project, base: Path) -> dict:
                                "next_stage": st.get("next_stage"),
                                "error": st.get("error")}
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     if out["pipeline"] is None:
         try:
@@ -77,6 +80,7 @@ def overview_report(prj: Project, base: Path) -> dict:
                                    "next_stage": st.get("next_stage")
                                    or st.get("stage")}
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
     conn.close()
 

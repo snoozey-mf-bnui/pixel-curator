@@ -14,8 +14,10 @@ unit-testable with an injected ``ForgeClient``.
 from __future__ import annotations
 
 import base64 as _b64
+import logging
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["dispatch_forge_generate", "validated_loras", "build_control_units"]
 
@@ -51,6 +53,7 @@ def build_control_units(payload: dict, client) -> list:
             if p.is_file():
                 return _b64.b64encode(p.read_bytes()).decode()
         except Exception:
+            logger.debug("suppressed exception", exc_info=True)
             pass
         return ""
 
@@ -89,7 +92,7 @@ def build_control_units(payload: dict, client) -> list:
                 return m
         return ""
 
-    def _verified(unit: dict) -> Optional[dict]:
+    def _verified(unit: dict) -> dict | None:
         mod = _resolve_module(unit.get("module", ""))
         mdl = _resolve_model(unit.get("model", ""))
         if not mod or not mdl:
@@ -127,9 +130,9 @@ def dispatch_forge_generate(payload: dict, out_base=None, project=None) -> dict:
     generation.
     """
     from .. import manifest
-    from .forge_api import ForgeClient
-    from .matrix import parse_lora_specs          # noqa: F401  (fallback path)
     from ..util import now_iso as _now
+    from .forge_api import ForgeClient
+    from .matrix import parse_lora_specs  # noqa: F401  (fallback path)
 
     out_base = Path(str(payload.get("output")
                         or out_base
@@ -237,8 +240,7 @@ def dispatch_forge_generate(payload: dict, out_base=None, project=None) -> dict:
         # self-improvement loop: record this generation with its full
         # settings (+ identity score if a reference face exists)
         try:
-            from ..studio.learning import (auto_score_identity,
-                                           record_generation)
+            from ..studio.learning import auto_score_identity, record_generation
             ids = (auto_score_identity(str(fpath), reference, project)
                    if (face_swap and reference) else None)
             record_generation(

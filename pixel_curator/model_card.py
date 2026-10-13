@@ -14,15 +14,17 @@ registry card (`pixel-curator card <lora-name>`) is untouched.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
-from typing import Optional
 
 from . import manifest
 from .config import Project
 from .util import now_iso
 
+logger = logging.getLogger(__name__)
 
-def _run_row(conn, run_name: str) -> Optional[dict]:
+
+def _run_row(conn, run_name: str) -> dict | None:
     from .eval.run_eval import _run_row
     return _run_row(conn, run_name)
 
@@ -37,7 +39,7 @@ def _dataset_line(conn, version: int) -> str:
             f"hash {row[1]}, built {row[4]})")
 
 
-def _stack_table(rec: Optional[dict]) -> str:
+def _stack_table(rec: dict | None) -> str:
     if not rec or not rec.get("recommended_stack"):
         return ("| Stack | Weights | Use Case |\n|---|---|---|\n"
                 "| Identity anchor only | 0.75-0.90 | baseline character "
@@ -77,6 +79,7 @@ def generate_model_card(conn, prj: Project, output_base: Path,
         from .artistic.stack_recommender import recommend_best_stack
         rec = recommend_best_stack(conn, prj, run["dataset_version"])
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
 
     lora_dir = Path(prj.lora_output_dir

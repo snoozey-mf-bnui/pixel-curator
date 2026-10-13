@@ -25,11 +25,9 @@ import json
 import logging
 import math
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterable, Optional
-
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +100,7 @@ def _smoothstep(x: float, edge0: float, edge1: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
-def _safe_float(v) -> Optional[float]:
+def _safe_float(v) -> float | None:
     """Coerce to float or None; NaN/Inf become None."""
     if v is None:
         return None
@@ -163,14 +161,14 @@ class IdentityConfidenceResult:
 def compute_identity_confidence(
     *,
     frame_id: str,
-    identity_sim: Optional[float] = None,
-    face_area: Optional[float] = None,
-    face_count: Optional[int] = None,
-    frontalness: Optional[float] = None,
-    face_sharpness: Optional[float] = None,
-    eyes_open: Optional[float] = None,
-    occlusion: Optional[float] = None,
-    integrity: Optional[float] = None,
+    identity_sim: float | None = None,
+    face_area: float | None = None,
+    face_count: int | None = None,
+    frontalness: float | None = None,
+    face_sharpness: float | None = None,
+    eyes_open: float | None = None,
+    occlusion: float | None = None,
+    integrity: float | None = None,
 ) -> IdentityConfidenceResult:
     """Compute a continuous identity confidence score from stored signals.
 
@@ -474,7 +472,7 @@ if __name__ == "__main__":
         occlusion=0.05,
         integrity=0.9,
     )
-    print(f"1. Strong identity:")
+    print("1. Strong identity:")
     print(f"   confidence={r1.identity_confidence:.4f}  "
           f"cof={r1.confidence_of_confidence:.4f}")
     print(f"   components={r1.components}")
@@ -493,7 +491,7 @@ if __name__ == "__main__":
         occlusion=0.1,
         integrity=0.7,
     )
-    print(f"\n2. Partial (no sharp/frontal):")
+    print("\n2. Partial (no sharp/frontal):")
     print(f"   confidence={r2.identity_confidence:.4f}  "
           f"cof={r2.confidence_of_confidence:.4f}")
     print(f"   missing={r2.components_missing}")
@@ -505,7 +503,7 @@ if __name__ == "__main__":
         frame_id="test_minimal",
         identity_sim=0.55,
     )
-    print(f"\n3. Minimal (sim only):")
+    print("\n3. Minimal (sim only):")
     print(f"   confidence={r3.identity_confidence:.4f}  "
           f"cof={r3.confidence_of_confidence:.4f}")
     assert abs(r3.confidence_of_confidence - 0.2) < 1e-6, \
@@ -523,7 +521,7 @@ if __name__ == "__main__":
         occlusion=0.0,
         integrity=0.85,
     )
-    print(f"\n4. Multi-face (3 faces):")
+    print("\n4. Multi-face (3 faces):")
     print(f"   confidence={r4.identity_confidence:.4f}  "
           f"multi_face_penalty={r4.penalties['multi_face']:.4f}")
     assert r4.penalties["multi_face"] < 1.0
@@ -540,7 +538,7 @@ if __name__ == "__main__":
         occlusion=0.0,
         integrity=0.3,
     )
-    print(f"\n5. Low integrity (0.3):")
+    print("\n5. Low integrity (0.3):")
     print(f"   confidence={r5.identity_confidence:.4f}  "
           f"integrity_gate={r5.penalties['integrity_gate']:.4f}")
     assert r5.penalties["integrity_gate"] < 0.6

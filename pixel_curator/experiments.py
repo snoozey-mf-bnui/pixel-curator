@@ -28,7 +28,6 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from .util import now_iso
 
@@ -49,7 +48,7 @@ _COLS = ("exp_id", "name", "model_path", "model_hash", "model_type",
 # Hashing (models are multi-GB: default is a cheap fingerprint)
 # ---------------------------------------------------------------------------
 
-def quick_hash(path: Path | str, full: bool = False) -> Optional[str]:
+def quick_hash(path: Path | str, full: bool = False) -> str | None:
     """Fingerprint a model file.
 
     Default 'quick:' mode hashes size + first/last MiB - enough to tell
@@ -90,7 +89,7 @@ def _to_record(row) -> dict:
 
 
 def get_experiment(conn: sqlite3.Connection,
-                   key: int | str) -> Optional[dict]:
+                   key: int | str) -> dict | None:
     """Look up by exp_id (int / numeric string) or exact name; falls back
     to a unique name-substring match."""
     cols = ", ".join(_COLS)
@@ -113,10 +112,10 @@ def get_experiment(conn: sqlite3.Connection,
 
 
 def list_experiments(conn: sqlite3.Connection, *,
-                     dataset_version: Optional[int] = None,
-                     model: Optional[str] = None,
-                     outcome: Optional[str] = None,
-                     since: Optional[str] = None,
+                     dataset_version: int | None = None,
+                     model: str | None = None,
+                     outcome: str | None = None,
+                     since: str | None = None,
                      limit: int = 0) -> list[dict]:
     where, params = [], []
     if dataset_version is not None:
@@ -150,18 +149,18 @@ def _stamp_note(text: str) -> str:
 
 def register_experiment(conn: sqlite3.Connection, *,
                         name: str,
-                        model_path: Optional[str] = None,
+                        model_path: str | None = None,
                         model_type: str = "lora",
-                        base_model: Optional[str] = None,
-                        dataset_version: Optional[int] = None,
-                        dataset_dir: Optional[str] = None,
-                        run_id: Optional[int] = None,
-                        params: Optional[dict] = None,
-                        outcome: Optional[str] = None,
-                        rating: Optional[int] = None,
+                        base_model: str | None = None,
+                        dataset_version: int | None = None,
+                        dataset_dir: str | None = None,
+                        run_id: int | None = None,
+                        params: dict | None = None,
+                        outcome: str | None = None,
+                        rating: int | None = None,
                         note: str = "",
                         source: str = "manual",
-                        trained_at: Optional[str] = None,
+                        trained_at: str | None = None,
                         hash_model: bool = True,
                         full_hash: bool = False) -> dict:
     """Insert an experiment record. Returns the record dict with a
@@ -217,10 +216,10 @@ _UPDATABLE = ("name", "model_path", "model_hash", "model_type", "base_model",
 
 
 def update_experiment(conn: sqlite3.Connection, exp_id: int,
-                      params: Optional[dict] = None,
+                      params: dict | None = None,
                       hash_model: bool = True,
                       full_hash: bool = False,
-                      **fields) -> Optional[dict]:
+                      **fields) -> dict | None:
     """Update selected fields (merge for params). Returns the fresh record
     or None when the experiment does not exist."""
     rec = get_experiment(conn, exp_id)
@@ -258,7 +257,7 @@ def update_experiment(conn: sqlite3.Connection, exp_id: int,
 
 
 def append_note(conn: sqlite3.Connection, exp_id: int,
-                text: str) -> Optional[dict]:
+                text: str) -> dict | None:
     rec = get_experiment(conn, exp_id)
     if not rec or not text.strip():
         return rec
@@ -278,8 +277,8 @@ def append_note(conn: sqlite3.Connection, exp_id: int,
 # ---------------------------------------------------------------------------
 
 def experiment_from_run(conn: sqlite3.Connection, run_id: int, *,
-                        lora_dir: Optional[Path] = None,
-                        note: str = "") -> tuple[Optional[dict], list[str]]:
+                        lora_dir: Path | None = None,
+                        note: str = "") -> tuple[dict | None, list[str]]:
     """Promote a ``runs`` row into an experiment (idempotent per run)."""
     row = conn.execute(
         "SELECT run_id, name, dataset_version, preset, status, config_json, "
@@ -320,7 +319,7 @@ def experiment_from_run(conn: sqlite3.Connection, run_id: int, *,
 # Human-readable layer: sidecars + export templates
 # ---------------------------------------------------------------------------
 
-def write_experiment_sidecar(rec: dict) -> Optional[Path]:
+def write_experiment_sidecar(rec: dict) -> Path | None:
     """``<model>.experiment.json`` beside the model file. Never raises."""
     mpath = rec.get("model_path")
     if not mpath:
@@ -342,11 +341,11 @@ def write_experiment_sidecar(rec: dict) -> Optional[Path]:
 
 def write_experiment_template(export_dir: Path | str, *,
                               name: str,
-                              dataset_version: Optional[int] = None,
-                              dataset_dir: Optional[str] = None,
-                              params: Optional[dict] = None,
-                              base_model: Optional[str] = None,
-                              model_type: str = "lora") -> Optional[Path]:
+                              dataset_version: int | None = None,
+                              dataset_dir: str | None = None,
+                              params: dict | None = None,
+                              base_model: str | None = None,
+                              model_type: str = "lora") -> Path | None:
     """Drop a prefilled ``experiment_template.json`` into a dataset export.
 
     The template travels with the export (e.g. into a Colab zip); after
@@ -412,7 +411,7 @@ def _ds_tag(rec: dict) -> str:
 
 
 def render_experiments(records: list[dict],
-                       extra_runs: Optional[list[dict]] = None) -> str:
+                       extra_runs: list[dict] | None = None) -> str:
     if not records and not extra_runs:
         return ("No experiments registered yet.\n"
                 "Register one: pixel-curator exp register --name X "
@@ -518,6 +517,7 @@ def render_experiment_detail(conn: sqlite3.Connection, rec: dict) -> str:
             lines.append("evals     : " + "  ".join(
                 f"{c or 'all'}: {avg:.3f} (n={n})" for c, n, avg in rows))
     except Exception:
+        log.debug("suppressed exception", exc_info=True)
         pass
 
     notes = (rec.get("notes") or "").strip()
@@ -530,7 +530,7 @@ def render_experiment_detail(conn: sqlite3.Connection, rec: dict) -> str:
 
 
 def unregistered_runs(conn: sqlite3.Connection,
-                      dataset_version: Optional[int] = None) -> list[dict]:
+                      dataset_version: int | None = None) -> list[dict]:
     """Internal training runs with no experiment record (optionally for
     one dataset version) - surfaced in `exp list` as promotion hints."""
     sql = ("SELECT r.run_id, r.name, r.status, r.dataset_version FROM runs r "

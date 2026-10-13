@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Optional
 
 from .util import HAVE_PIL
 
@@ -64,7 +63,7 @@ def crop_box_for_poi(
     return rw, rh, left, top, left + bucket_w, top + bucket_h
 
 
-def poi_from_bbox(bbox_json: Optional[str]) -> tuple[float, float]:
+def poi_from_bbox(bbox_json: str | None) -> tuple[float, float]:
     """Face bbox -> POI. Biased slightly above bbox center (face -> head/torso
     composition). Missing/invalid bbox -> image center."""
     if not bbox_json:
@@ -81,7 +80,7 @@ def poi_from_bbox(bbox_json: Optional[str]) -> tuple[float, float]:
 
 
 def smart_crop_image(
-    src: Path, dest: Path, bbox_json: Optional[str],
+    src: Path, dest: Path, bbox_json: str | None,
     base: int = 1024, quality: int = 92,
 ) -> tuple[int, int]:
     """Crop src to its nearest SDXL bucket, subject-centered. Returns bucket."""

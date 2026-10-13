@@ -16,7 +16,6 @@ Design rules:
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from .presets import PRESETS
 
@@ -52,11 +51,11 @@ _SIZE_SUFFICIENT = 300
 _SIZE_STRONG = 700
 
 
-def available_presets(presets: Optional[dict] = None) -> list[str]:
+def available_presets(presets: dict | None = None) -> list[str]:
     return sorted(presets if presets is not None else PRESETS)
 
 
-def _closest_available(target: str, presets: dict) -> Optional[str]:
+def _closest_available(target: str, presets: dict) -> str | None:
     for cand in _FALLBACK_CHAINS.get(target, [target]):
         if cand in presets:
             return cand
@@ -365,8 +364,8 @@ def _score_candidates(s: dict, presets: dict,
 # ---------------------------------------------------------------------------
 
 def suggest_preset(conn, dataset_version: int,
-                   recipe_name: Optional[str] = None,
-                   presets: Optional[dict] = None) -> dict:
+                   recipe_name: str | None = None,
+                   presets: dict | None = None) -> dict:
     """Analyze a built dataset version and recommend a training preset.
 
     conn            manifest connection (manifest.connect(output_base))

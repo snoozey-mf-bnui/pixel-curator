@@ -55,7 +55,7 @@ def _dtype(name: str, device: str):
 
 def _load_model(model_path, device, dtype, local_files_only, trust_remote_code):
     """Load Florence-2 from a local path. MPS-safe (manual .to, no device_map)."""
-    from transformers import AutoProcessor, AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM, AutoProcessor
     processor = AutoProcessor.from_pretrained(
         model_path, trust_remote_code=trust_remote_code,
         local_files_only=local_files_only)

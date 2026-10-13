@@ -19,8 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple, List
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # 6-point eye contour format: List[Tuple[float, float]]
 # Standard order: [outer_corner, top_outer, top_inner, inner_corner, bottom_inner, bottom_outer]
-EyePoints = List[Tuple[float, float]]
+EyePoints = list[tuple[float, float]]
 
 
 @dataclass
@@ -43,14 +42,14 @@ class EyeOpennessThresholds:
 @dataclass
 class EyeOpennessScores:
     """Container for eye openness metrics with serialization."""
-    eye_openness: Optional[float] = None        # 0.0 (closed) to 1.0 (fully open)
-    is_eyes_closed: Optional[bool] = None
-    is_squinting: Optional[bool] = None
-    ear_value: Optional[float] = None           # Raw Eye Aspect Ratio
+    eye_openness: float | None = None        # 0.0 (closed) to 1.0 (fully open)
+    is_eyes_closed: bool | None = None
+    is_squinting: bool | None = None
+    ear_value: float | None = None           # Raw Eye Aspect Ratio
     confidence: float = 0.0
-    thresholds_used: Dict[str, float] = field(default_factory=dict)
+    thresholds_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -60,7 +59,7 @@ class EyeOpennessScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -68,7 +67,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Tuple[float, float]], p2: Optional[Tuple[float, float]]) -> float:
+def _dist(p1: tuple[float, float] | None, p2: tuple[float, float] | None) -> float:
     """Euclidean distance between two points."""
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
@@ -76,7 +75,7 @@ def _dist(p1: Optional[Tuple[float, float]], p2: Optional[Tuple[float, float]]) 
 
 # --- Geometric Estimation Helpers ---
 
-def calculate_ear(eye_points: EyePoints) -> Optional[float]:
+def calculate_ear(eye_points: EyePoints) -> float | None:
     """
     Calculates the Eye Aspect Ratio (EAR).
     Formula: (||p2-p6|| + ||p3-p5||) / (2.0 * ||p1-p4||)
@@ -84,28 +83,28 @@ def calculate_ear(eye_points: EyePoints) -> Optional[float]:
     """
     if not eye_points or len(eye_points) != 6:
         return None
-        
+
     p1, p2, p3, p4, p5, p6 = eye_points
-    
+
     # Vertical distances
     A = _dist(p2, p6)
     B = _dist(p3, p5)
-    
+
     # Horizontal distance
     C = _dist(p1, p4)
-    
+
     if C < 1e-6:
         return None
-        
+
     ear = (A + B) / (2.0 * C)
     return float(ear)
 
 
 def estimate_openness_from_landmarks(
-    left_eye: Optional[EyePoints] = None,
-    right_eye: Optional[EyePoints] = None,
+    left_eye: EyePoints | None = None,
+    right_eye: EyePoints | None = None,
     thresholds: EyeOpennessThresholds = EyeOpennessThresholds()
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """
     Estimates eye openness from 6-point eye contours.
     Returns a dictionary of raw signals.
@@ -117,20 +116,20 @@ def estimate_openness_from_landmarks(
     if right_eye:
         ear_r = calculate_ear(right_eye)
         if ear_r is not None: ears.append(ear_r)
-        
+
     if not ears:
         return {}
-        
+
     avg_ear = float(np.mean(ears))
-    
+
     # Map EAR to a 0.0-1.0 openness score
     # < closed_ear = 0.0, > wide_open_ear = 1.0
     range_val = thresholds.wide_open_ear - thresholds.closed_ear
     if range_val <= 0: range_val = 0.15 # Fallback
-        
+
     openness = (avg_ear - thresholds.closed_ear) / range_val
     openness = max(0.0, min(1.0, openness))
-    
+
     return {
         "ear_value": avg_ear,
         "eye_openness": openness,
@@ -142,10 +141,10 @@ def estimate_openness_from_landmarks(
 # --- Main Logic ---
 
 def evaluate_eye_openness(
-    eye_openness: Optional[float] = None,
-    is_eyes_closed: Optional[bool] = None,
-    is_squinting: Optional[bool] = None,
-    ear_value: Optional[float] = None,
+    eye_openness: float | None = None,
+    is_eyes_closed: bool | None = None,
+    is_squinting: bool | None = None,
+    ear_value: float | None = None,
     thresholds: EyeOpennessThresholds = EyeOpennessThresholds(),
 ) -> EyeOpennessScores:
     """
@@ -186,8 +185,8 @@ def evaluate_eye_openness(
 
 
 def evaluate_from_landmarks(
-    left_eye: Optional[EyePoints] = None,
-    right_eye: Optional[EyePoints] = None,
+    left_eye: EyePoints | None = None,
+    right_eye: EyePoints | None = None,
     thresholds: EyeOpennessThresholds = EyeOpennessThresholds(),
 ) -> EyeOpennessScores:
     """
@@ -214,7 +213,7 @@ def are_eyes_closed(scores: EyeOpennessScores, threshold: float = 0.2) -> bool:
     """Returns True if the eyes are considered closed."""
     if scores.ear_value is not None:
         # Use raw EAR for precision if available
-        return scores.ear_value < 0.15 
+        return scores.ear_value < 0.15
     if scores.eye_openness is not None:
         return scores.eye_openness < threshold
     return scores.is_eyes_closed if scores.is_eyes_closed is not None else False

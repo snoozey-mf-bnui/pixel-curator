@@ -15,7 +15,7 @@ or modified here - only metadata dictionaries are inspected.
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 log = logging.getLogger("redresser.dataset_classifier")
 

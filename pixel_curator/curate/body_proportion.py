@@ -20,17 +20,14 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple, List
-
-import numpy as np
+from dataclasses import asdict, dataclass, field
 
 logger = logging.getLogger(__name__)
 
 # Bbox format: Tuple[int, int, int, int] -> (x_min, y_min, x_max, y_max)
-BBox = Tuple[int, int, int, int]
+BBox = tuple[int, int, int, int]
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 # Ideal human anatomical ratios (relative to overall body height)
 # Source: Standard anatomical drawing ratios (e.g., Andrew Loomis / Vitruvian)
@@ -42,15 +39,15 @@ IDEAL_ARM_LEG = 0.85     # Arms are slightly shorter than legs
 @dataclass
 class BodyProportionScores:
     """Container for body proportion metrics with serialization capabilities."""
-    head_body_ratio: Optional[float] = None
-    torso_leg_ratio: Optional[float] = None
-    arm_leg_ratio: Optional[float] = None
-    overall_proportion_score: Optional[float] = None
-    has_unrealistic_proportions: Optional[bool] = None
+    head_body_ratio: float | None = None
+    torso_leg_ratio: float | None = None
+    arm_leg_ratio: float | None = None
+    overall_proportion_score: float | None = None
+    has_unrealistic_proportions: bool | None = None
     confidence: float = 0.0
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -60,7 +57,7 @@ class BodyProportionScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None: return None
     if not isinstance(value, (int, float)): return None
@@ -68,7 +65,7 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _dist(p1: Point | None, p2: Point | None) -> float:
     """Euclidean distance between two points."""
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
@@ -85,9 +82,9 @@ def _gaussian_score(value: float, ideal: float, spread: float) -> float:
 # --- Geometric Calculation Helpers ---
 
 def calculate_ratios_from_geometry(
-    face_bbox: Optional[BBox] = None,
-    keypoints: Optional[Dict[str, Point]] = None
-) -> Dict[str, Optional[float]]:
+    face_bbox: BBox | None = None,
+    keypoints: dict[str, Point] | None = None
+) -> dict[str, float | None]:
     """
     Calculates body ratios directly from a face bounding box and 2D pose keypoints.
     Expects standard keypoint names: 'neck', 'mid_hip', 'left_ankle', 'left_shoulder', etc.
@@ -97,10 +94,10 @@ def calculate_ratios_from_geometry(
 
     neck = keypoints["neck"]
     mid_hip = keypoints["mid_hip"]
-    
+
     # Determine ankle (use whichever is visible)
     ankle = keypoints.get("left_ankle") or keypoints.get("right_ankle")
-    
+
     if not ankle:
         return {"head_body_ratio": None, "torso_leg_ratio": None, "arm_leg_ratio": None}
 
@@ -125,7 +122,7 @@ def calculate_ratios_from_geometry(
     shoulder = keypoints.get("left_shoulder") or keypoints.get("right_shoulder")
     elbow = keypoints.get("left_elbow") or keypoints.get("right_elbow")
     wrist = keypoints.get("left_wrist") or keypoints.get("right_wrist")
-    
+
     if shoulder and elbow and wrist:
         arm_len = _dist(shoulder, elbow) + _dist(elbow, wrist)
         if leg_len > 1e-6:
@@ -141,11 +138,11 @@ def calculate_ratios_from_geometry(
 # --- Main Logic ---
 
 def evaluate_body_proportions(
-    head_body_ratio: Optional[float] = None,
-    torso_leg_ratio: Optional[float] = None,
-    arm_leg_ratio: Optional[float] = None,
-    has_unrealistic_proportions: Optional[bool] = None,
-    weights: Dict[str, float] = field(default_factory=lambda: {
+    head_body_ratio: float | None = None,
+    torso_leg_ratio: float | None = None,
+    arm_leg_ratio: float | None = None,
+    has_unrealistic_proportions: bool | None = None,
+    weights: dict[str, float] = field(default_factory=lambda: {
         "head_body_ratio": 0.40,
         "torso_leg_ratio": 0.35,
         "arm_leg_ratio": 0.25,
@@ -198,7 +195,7 @@ def evaluate_body_proportions(
         weighted_sum = sum(c * w for c, w in zip(components, used_weights))
         total_weight = sum(used_weights)
         raw_score = float(weighted_sum / total_weight)
-        
+
         # Check for severe deformities (e.g., ratio outside 3x the ideal)
         if (head_body_ratio and head_body_ratio > 0.4) or \
            (torso_leg_ratio and torso_leg_ratio > 2.5) or \
@@ -207,7 +204,7 @@ def evaluate_body_proportions(
             scores.overall_proportion_score = min(0.2, raw_score)
         else:
             scores.overall_proportion_score = raw_score
-            
+
         # Confidence scales with how many metrics we evaluated
         scores.confidence = 0.4 + (0.2 * len(components))
 
@@ -215,9 +212,9 @@ def evaluate_body_proportions(
 
 
 def evaluate_from_geometry(
-    face_bbox: Optional[BBox] = None,
-    keypoints: Optional[Dict[str, Point]] = None,
-    weights: Dict[str, float] = field(default_factory=lambda: {
+    face_bbox: BBox | None = None,
+    keypoints: dict[str, Point] | None = None,
+    weights: dict[str, float] = field(default_factory=lambda: {
         "head_body_ratio": 0.40,
         "torso_leg_ratio": 0.35,
         "arm_leg_ratio": 0.25,
@@ -228,7 +225,7 @@ def evaluate_from_geometry(
     then evaluates the proportions.
     """
     ratios = calculate_ratios_from_geometry(face_bbox, keypoints)
-    
+
     return evaluate_body_proportions(
         head_body_ratio=ratios.get("head_body_ratio"),
         torso_leg_ratio=ratios.get("torso_leg_ratio"),

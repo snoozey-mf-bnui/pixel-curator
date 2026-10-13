@@ -16,7 +16,6 @@ import json
 import struct
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from .config import Project
 from .util import now_iso
@@ -116,17 +115,17 @@ class LoraCard:
     """UI-ready record for one LoRA."""
     lora_id: str
     path: str
-    preview: Optional[str] = None
-    modified_at: Optional[str] = None
+    preview: str | None = None
+    modified_at: str | None = None
     size_mb: float = 0.0
-    network_dim: Optional[int] = None
+    network_dim: int | None = None
     sd_metadata: dict = field(default_factory=dict)
     profile: LoraInfluenceProfile = field(default_factory=LoraInfluenceProfile)
     display_name: str = ""
     description: str = ""
     preview_levels: dict = field(default_factory=dict)   # level -> image path
     has_preview: bool = False
-    metadata_source: Optional[str] = None    # sidecar path | "inferred"
+    metadata_source: str | None = None    # sidecar path | "inferred"
     concept_meta: dict = field(default_factory=dict)     # normalized v2 metadata
 
     def to_json(self) -> dict:
@@ -155,7 +154,7 @@ def read_safetensors_metadata(path: Path,
         return {}
 
 
-def _network_dim(meta: dict) -> Optional[int]:
+def _network_dim(meta: dict) -> int | None:
     for k in ("ss_network_dim", "network_dim"):
         try:
             return int(meta.get(k))
@@ -197,7 +196,7 @@ def sidecar_path(lora_path: Path) -> Path:
 
 
 def _sidecar_candidates(lora_path: Path,
-                        previews_root: Optional[Path] = None) -> list[Path]:
+                        previews_root: Path | None = None) -> list[Path]:
     cands = [sidecar_path(lora_path),
              lora_path.with_suffix(".json")]
     if previews_root:
@@ -206,7 +205,7 @@ def _sidecar_candidates(lora_path: Path,
 
 
 def parse_sidecar(data: dict, stem: str,
-                  meta: Optional[dict] = None) -> tuple:
+                  meta: dict | None = None) -> tuple:
     """Tolerant parser for all sidecar schemas (v2 rich, v1 native, legacy).
 
     Returns (profile, display_name, description, preview_images_map).
@@ -264,8 +263,8 @@ def parse_sidecar(data: dict, stem: str,
 
 
 def load_sidecar_raw(lora_path: Path,
-                     previews_root: Optional[Path] = None
-                     ) -> tuple[Optional[dict], Optional[str]]:
+                     previews_root: Path | None = None
+                     ) -> tuple[dict | None, str | None]:
     """First readable sidecar wins.  Returns (data, source_path)."""
     for sp in _sidecar_candidates(lora_path, previews_root):
         if not sp.exists():
@@ -279,7 +278,7 @@ def load_sidecar_raw(lora_path: Path,
     return None, None
 
 
-def load_sidecar(lora_path: Path) -> Optional[LoraInfluenceProfile]:
+def load_sidecar(lora_path: Path) -> LoraInfluenceProfile | None:
     data, _src = load_sidecar_raw(lora_path)
     if data is None:
         return None
@@ -293,7 +292,7 @@ def save_sidecar(lora_path: Path, profile: LoraInfluenceProfile) -> Path:
     return sp
 
 
-def _find_preview(lora_path: Path) -> Optional[str]:
+def _find_preview(lora_path: Path) -> str | None:
     for suffix in _PREVIEW_SUFFIXES:
         cand = lora_path.with_name(lora_path.stem + suffix)
         if cand.exists():
@@ -301,8 +300,8 @@ def _find_preview(lora_path: Path) -> Optional[str]:
     return None
 
 
-def find_preview_images(lora_path: Path, metadata: Optional[dict] = None,
-                        previews_root: Optional[Path] = None) -> dict:
+def find_preview_images(lora_path: Path, metadata: dict | None = None,
+                        previews_root: Path | None = None) -> dict:
     """Discover strength-preview images for a LoRA.
 
     Precedence per level: sidecar-declared file > `<stem>.<level>.<ext>`
@@ -361,7 +360,7 @@ def lora_dirs(prj: Project) -> list[Path]:
     return [d for d in dirs if d.exists()]
 
 
-def default_previews_root(prj: Project) -> Optional[Path]:
+def default_previews_root(prj: Project) -> Path | None:
     """Dedicated previews folder: `<output_base>/previews/lora/<stem>/`."""
     if prj.output_base:
         root = Path(prj.output_base).expanduser() / "previews" / "lora"
@@ -370,9 +369,9 @@ def default_previews_root(prj: Project) -> Optional[Path]:
     return None
 
 
-def scan_loras(prj: Project, dirs: Optional[list[Path]] = None,
+def scan_loras(prj: Project, dirs: list[Path] | None = None,
                read_metadata: bool = True,
-               previews_root: Optional[Path] = None) -> list[LoraCard]:
+               previews_root: Path | None = None) -> list[LoraCard]:
     """Build the LoRA index.  Sidecar profile > inferred profile.
     Tolerant by design: a LoRA with no metadata, no sidecar, or no preview
     still yields a complete card (placeholder preview state)."""
@@ -461,7 +460,7 @@ def scan_loras_cached(prj: Project, max_age: float = 10.0,
 
 
 def discover_loras(roots: list[str],
-                   previews_root: Optional[str] = None) -> list[LoraCard]:
+                   previews_root: str | None = None) -> list[LoraCard]:
     """Spec-parity API: scan explicit roots without a Project."""
     prj = Project()
     return scan_loras(prj,

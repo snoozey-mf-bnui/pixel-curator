@@ -13,12 +13,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Optional
 
 from .lora_explorer import FAMILY_WEIGHT_RANGES, LoraCard
 from .stack_intelligence import ResolvedLoraStack, resolve_stack
 from .util import now_iso
-
 
 # ---------------------------------------------------------------------------
 # Concept family registry - professional aliases -> canonical families
@@ -74,7 +72,7 @@ class SliderMappingResult:
 
 
 def map_slider_to_weight(slider_value: float, family: str,
-                         identity_context: Optional[dict] = None
+                         identity_context: dict | None = None
                          ) -> SliderMappingResult:
     """Intelligent mapping: family operating range + response curve +
     soft/hard caps + identity-aware damping.
@@ -228,7 +226,7 @@ def slider_specs() -> list[dict]:
     return [asdict(s) for s in CONCEPT_SLIDERS]
 
 
-def _family_slider(family: str) -> Optional[ConceptSlider]:
+def _family_slider(family: str) -> ConceptSlider | None:
     for s in CONCEPT_SLIDERS:
         if family in s.families:
             return s
@@ -237,7 +235,7 @@ def _family_slider(family: str) -> Optional[ConceptSlider]:
 
 def resolve_concept_weights(cards: list[LoraCard],
                             state: ConceptSliderState,
-                            overrides: Optional[dict[str, float]] = None
+                            overrides: dict[str, float] | None = None
                             ) -> dict[str, float]:
     """Slider state -> per-LoRA weights via the intelligent mapping
     (response curves, caps, identity-aware damping).  `overrides` are
@@ -283,9 +281,9 @@ def resolve_concept_weights(cards: list[LoraCard],
 
 def resolve_controlled_stack(cards: list[LoraCard],
                              state: ConceptSliderState,
-                             base_model: Optional[str] = None,
-                             overrides: Optional[dict[str, float]] = None,
-                             pinned: Optional[set] = None
+                             base_model: str | None = None,
+                             overrides: dict[str, float] | None = None,
+                             pinned: set | None = None
                              ) -> ResolvedLoraStack:
     """Sliders + selection -> intelligence-checked stack (never overdrives:
     resolve_stack normalizes and warns).  Overridden LoRAs are treated as

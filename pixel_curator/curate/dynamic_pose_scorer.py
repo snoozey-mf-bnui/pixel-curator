@@ -20,18 +20,17 @@ from __future__ import annotations
 import json
 import logging
 import math
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Tuple, List
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # Point format: Tuple[float, float] -> (x, y)
-Point = Tuple[float, float]
+Point = tuple[float, float]
 
 # --- Default Configuration ---
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "pose_energy": 0.35,
     "pose_variation": 0.35,
     "pose_interest": 0.30,
@@ -41,13 +40,13 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
 @dataclass
 class DynamicPoseScores:
     """Container for dynamic pose metrics with serialization capabilities."""
-    pose_energy: Optional[float] = None
-    pose_variation: Optional[float] = None
-    pose_interest: Optional[float] = None
-    overall_dynamic_score: Optional[float] = None
-    weights_used: Dict[str, float] = field(default_factory=dict)
+    pose_energy: float | None = None
+    pose_variation: float | None = None
+    pose_interest: float | None = None
+    overall_dynamic_score: float | None = None
+    weights_used: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Converts scores to a dictionary, rounding for cleaner output."""
         data = asdict(self)
         return {k: (round(v, 4) if isinstance(v, float) else v) for k, v in data.items()}
@@ -57,7 +56,7 @@ class DynamicPoseScores:
         return json.dumps(self.to_dict())
 
 
-def _sanitize_score(value: Optional[float]) -> Optional[float]:
+def _sanitize_score(value: float | None) -> float | None:
     """Validates and clamps scores to [0.0, 1.0]. Returns None if invalid."""
     if value is None:
         return None
@@ -68,25 +67,25 @@ def _sanitize_score(value: Optional[float]) -> Optional[float]:
     return max(0.0, min(1.0, float(value)))
 
 
-def _dist(p1: Optional[Point], p2: Optional[Point]) -> float:
+def _dist(p1: Point | None, p2: Point | None) -> float:
     """Euclidean distance between two points."""
     if not p1 or not p2: return 0.0
     return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
 
 
-def _angle(p1: Optional[Point], p2: Optional[Point], p3: Optional[Point]) -> Optional[float]:
+def _angle(p1: Point | None, p2: Point | None, p3: Point | None) -> float | None:
     """
     Calculates the angle in degrees at p2 formed by p1-p2-p3.
     Returns None if any point is missing.
     """
     if not p1 or not p2 or not p3: return None
-    
+
     v1 = (p1[0] - p2[0], p1[1] - p2[1])
     v2 = (p3[0] - p2[0], p3[1] - p2[1])
-    
+
     dot = v1[0] * v2[0] + v1[1] * v2[1]
     cross = abs(v1[0] * v2[1] - v1[1] * v2[0])
-    
+
     # atan2 gives the angle directly, avoiding division by zero errors
     angle_rad = math.atan2(cross, dot)
     return math.degrees(angle_rad)
@@ -94,7 +93,7 @@ def _angle(p1: Optional[Point], p2: Optional[Point], p3: Optional[Point]) -> Opt
 
 # --- Geometric Estimation Helpers ---
 
-def estimate_pose_energy(keypoints: Dict[str, Point]) -> Optional[float]:
+def estimate_pose_energy(keypoints: dict[str, Point]) -> float | None:
     """
     Estimates pose energy by measuring how far the extremities (wrists, ankles)
     are from the body's center of mass (torso center), normalized by torso length.
@@ -102,38 +101,38 @@ def estimate_pose_energy(keypoints: Dict[str, Point]) -> Optional[float]:
     """
     required = ["neck", "mid_hip"]
     if not all(k in keypoints for k in required): return None
-    
+
     neck = keypoints["neck"]
     mid_hip = keypoints["mid_hip"]
     torso_len = _dist(neck, mid_hip)
-    
+
     if torso_len < 1e-6: return None
-    
+
     # Center of mass approximation
     com = ((neck[0] + mid_hip[0]) / 2.0, (neck[1] + mid_hip[1]) / 2.0)
-    
+
     extremities = [
         keypoints.get("left_wrist"), keypoints.get("right_wrist"),
         keypoints.get("left_ankle"), keypoints.get("right_ankle"),
         keypoints.get("nose") # Head movement counts slightly
     ]
-    
+
     reaches = []
     for ext in extremities:
         if ext:
             reaches.append(_dist(com, ext) / torso_len)
-            
+
     if not reaches: return None
-    
+
     # Average reach normalized by torso length.
     # Typical neutral pose reach is ~1.5 to 2.0. High energy is ~3.0+
     avg_reach = float(np.mean(reaches))
-    
+
     # Asymptotic normalization: reaches 1.0 around avg_reach = 3.5
     return float(avg_reach / (avg_reach + 2.5))
 
 
-def estimate_pose_variation(keypoints: Dict[str, Point]) -> Optional[float]:
+def estimate_pose_variation(keypoints: dict[str, Point]) -> float | None:
     """
     Estimates pose variation by measuring joint flexion.
     Compares elbow and knee angles against a perfectly straight 180 degrees.
@@ -146,24 +145,24 @@ def estimate_pose_variation(keypoints: Dict[str, Point]) -> Optional[float]:
         ("left_hip", "left_knee", "left_ankle"),
         ("right_hip", "right_knee", "right_ankle")
     ]
-    
+
     flex_scores = []
     for p1_name, p2_name, p3_name in joints_to_check:
         p1, p2, p3 = keypoints.get(p1_name), keypoints.get(p2_name), keypoints.get(p3_name)
         angle = _angle(p1, p2, p3)
-        
+
         if angle is not None:
             # 180 degrees = perfectly straight (0 flex). 0 degrees = fully folded (max flex).
             # We reward flexion. 90 degrees flexion = 1.0 score.
             flex = (180.0 - angle) / 90.0
             flex_scores.append(max(0.0, min(1.0, flex)))
-            
+
     if not flex_scores: return None
-    
+
     return float(np.mean(flex_scores))
 
 
-def estimate_pose_interest(keypoints: Dict[str, Point]) -> Optional[float]:
+def estimate_pose_interest(keypoints: dict[str, Point]) -> float | None:
     """
     Estimates pose interest via contrapposto and torso tilt.
     Measures the angle difference between the shoulder line and hip line.
@@ -171,18 +170,18 @@ def estimate_pose_interest(keypoints: Dict[str, Point]) -> Optional[float]:
     """
     required = ["left_shoulder", "right_shoulder", "left_hip", "right_hip"]
     if not all(k in keypoints for k in required): return None
-    
+
     l_sh, r_sh = keypoints["left_shoulder"], keypoints["right_shoulder"]
     l_hip, r_hip = keypoints["left_hip"], keypoints["right_hip"]
-    
+
     # Angle of shoulder line and hip line relative to horizontal
     # atan2(delta_y, delta_x)
     shoulder_angle = math.degrees(math.atan2(l_sh[1] - r_sh[1], l_sh[0] - r_sh[0]))
     hip_angle = math.degrees(math.atan2(l_hip[1] - r_hip[1], l_hip[0] - r_hip[0]))
-    
+
     # Absolute difference in tilt. 0 = parallel. 90 = perpendicular.
     tilt_diff = abs(shoulder_angle - hip_angle)
-    
+
     # A tilt difference of 15-20 degrees is classic contrapposto (very interesting).
     # 45+ degrees is extreme action.
     # We use an asymptotic normalizer: reaches 1.0 around 30 degrees difference.
@@ -192,10 +191,10 @@ def estimate_pose_interest(keypoints: Dict[str, Point]) -> Optional[float]:
 # --- Main Logic ---
 
 def compute_dynamic_pose_score(
-    pose_energy: Optional[float] = None,
-    pose_variation: Optional[float] = None,
-    pose_interest: Optional[float] = None,
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    pose_energy: float | None = None,
+    pose_variation: float | None = None,
+    pose_interest: float | None = None,
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> DynamicPoseScores:
     """
     Main function to compute dynamic pose quality from pre-computed signals.
@@ -237,8 +236,8 @@ def compute_dynamic_pose_score(
 
 
 def compute_dynamic_from_keypoints(
-    keypoints: Dict[str, Point],
-    weights: Dict[str, float] = DEFAULT_WEIGHTS,
+    keypoints: dict[str, Point],
+    weights: dict[str, float] = DEFAULT_WEIGHTS,
 ) -> DynamicPoseScores:
     """
     Convenience wrapper: Estimates all dynamic pose signals directly from 2D pose keypoints.

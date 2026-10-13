@@ -70,9 +70,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
 
-from .config import ExtractConfig, Project, DEFAULT_FPS_TIERS, load_project
+from .config import DEFAULT_FPS_TIERS, ExtractConfig, Project, load_project
 from .extract import pipeline_generator
 from .util import discover_videos
 
@@ -234,7 +233,7 @@ def run(toml_path: str | Path,
         print("ERROR: no video_dirs configured in the TOML")
         return 1
 
-    print(f"=== Smart NSFW Extraction (pixel_curator engine) ===")
+    print("=== Smart NSFW Extraction (pixel_curator engine) ===")
     print(f"  project    : {Path(toml_path).expanduser()}")
     print(f"  output_base: {cfg.output_base}")
     print(f"  video_dirs : {len(video_dirs)} director(ies)")

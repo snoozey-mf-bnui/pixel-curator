@@ -19,27 +19,30 @@ import logging
 import math
 import random
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Optional
 
 from .. import manifest
 from ..config import ClusterConfig
 from ..util import now_iso, setup_logging
 
+logger = logging.getLogger(__name__)
+
 _CLIP = None
-_CLIP_ERR: Optional[str] = None
+_CLIP_ERR: str | None = None
 
 
 def clip_available() -> tuple[bool, str]:
     try:
-        import torch  # noqa: F401
         import numpy  # noqa: F401
+        import torch  # noqa: F401
     except Exception as exc:
         return False, f"missing torch/numpy: {exc}"
     try:
         import open_clip  # noqa: F401
         return True, "open_clip"
     except Exception:
+        logger.debug("suppressed exception", exc_info=True)
         pass
     try:
         import transformers  # noqa: F401
@@ -81,6 +84,7 @@ def _load_clip():
                             imgs.append(preprocess(im.convert("RGB")))
                         ok_idx.append(i)
                     except Exception:
+                        logger.debug("suppressed exception", exc_info=True)
                         pass
                 if not imgs:
                     return ok_idx, np.zeros((0, 512), dtype=np.float32)
@@ -106,6 +110,7 @@ def _load_clip():
                             pil.append(im.convert("RGB"))
                         ok_idx.append(i)
                     except Exception:
+                        logger.debug("suppressed exception", exc_info=True)
                         pass
                 if not pil:
                     return ok_idx, np.zeros((0, 512), dtype=np.float32)
