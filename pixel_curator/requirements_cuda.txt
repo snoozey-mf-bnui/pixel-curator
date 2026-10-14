@@ -84,7 +84,7 @@ onnx==1.23.2
 onnxruntime-gpu==1.23.2
 open_clip_torch==3.3.0
 opencv-python==4.9.0.80
-opencv-python-headless==4.11.0.86
+opencv-python-headless==5.0.0.93
 opentelemetry-api==1.45.1
 packaging==26.3
 pillow==12.3.0
